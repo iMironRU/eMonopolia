@@ -1,0 +1,32 @@
+# Деплой веб-приложения на GitHub Pages
+# Активируется когда apps/web будет готов
+name: Deploy web app
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/web/**'
+      - 'data/**'
+      - 'content/**'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      # TODO: enable when apps/web exists
+      # - run: cd apps/web && npm ci && npm run build
+      # - uses: actions/upload-pages-artifact@v3
+      #   with:
+      #     path: apps/web/out
+      # - uses: actions/deploy-pages@v4
+      - name: TODO
+        run: echo "Web app not implemented yet"

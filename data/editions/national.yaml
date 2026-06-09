@@ -1,0 +1,14 @@
+# Национальная редакция - русскоязычный интернет.
+# Те же 22 поля, но образовательный контент сфокусирован на рунете.
+
+edition:
+  id: national
+  name: Национальная (рунет)
+  description: Игра про русскоязычный интернет. VK, Яндекс, Wildberries.
+
+properties_used: all
+providers_used: all
+utilities_used: all
+
+# Альтернативный контент для редакции
+content_override: ru-national

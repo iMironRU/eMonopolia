@@ -1,0 +1,114 @@
+# Карточки "Общественная казна" (16 штук)
+# Преимущественно позитивные события - возможности интернет-бизнеса.
+
+chest:
+  - id: went_viral
+    title: Завирусилось
+    text: Получи 200 $NET.
+    action:
+      type: receive_bank
+      amount: 200
+
+  - id: good_seo
+    title: Хороший SEO
+    text: Получи 5 трафика.
+    action:
+      type: gain_traffic
+      amount: 5
+
+  - id: influencer_partnership
+    title: Партнёрка с инфлюенсером
+    text: Получи 150 $NET.
+    action:
+      type: receive_bank
+      amount: 150
+
+  - id: digitization_grant
+    title: Грант на цифровизацию
+    text: Получи 100 $NET от государства.
+    action:
+      type: receive_bank
+      amount: 100
+
+  - id: ad_campaign_success
+    title: Реклама окупилась
+    text: Получи 200 $NET.
+    action:
+      type: receive_bank
+      amount: 200
+
+  - id: subscription_upgrade
+    title: Подписчики обновили тариф
+    text: Каждый игрок платит тебе 50 $NET.
+    action:
+      type: collect_from_each
+      amount: 50
+
+  - id: investor_round
+    title: Инвестор оценил бизнес
+    text: Получи 500 $NET.
+    action:
+      type: receive_bank
+      amount: 500
+
+  - id: seasonal_peak
+    title: Сезонный пик продаж
+    text: Удвой следующую полученную ренту.
+    action:
+      type: double_next_rent
+
+  - id: site_birthday
+    title: День рождения сайта
+    text: Каждый игрок дарит тебе 10 $NET.
+    action:
+      type: collect_from_each
+      amount: 10
+
+  - id: free_ssl
+    title: SSL-сертификат бесплатно
+    text: Сэкономил 50 $NET.
+    action:
+      type: receive_bank
+      amount: 50
+
+  - id: tax_refund
+    title: Возврат с налоговой
+    text: Получи 100 $NET.
+    action:
+      type: receive_bank
+      amount: 100
+
+  - id: open_api_popular
+    title: Открытый API стал популярен
+    text: Получи 75 $NET.
+    action:
+      type: receive_bank
+      amount: 75
+
+  - id: go_to_start
+    title: Иди на СТАРТ
+    text: Получи 200 $NET за прохождение.
+    action:
+      type: move_to
+      target: start
+
+  - id: hackathon_win
+    title: Победа в хакатоне
+    text: Получи 200 $NET.
+    action:
+      type: receive_bank
+      amount: 200
+
+  - id: domain_flip
+    title: Перепродал домен дороже покупки
+    text: Получи 300 $NET.
+    action:
+      type: receive_bank
+      amount: 300
+
+  - id: patron_donation
+    title: Пожертвование от мецената
+    text: Получи 100 $NET.
+    action:
+      type: receive_bank
+      amount: 100

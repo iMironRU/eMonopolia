@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 1000" font-family="'Arial Black', 'Helvetica Neue', sans-serif">
+  <!-- Background -->
+  <rect width="1200" height="1000" fill="#f8f9fa"/>
+
+  <!-- ============================ -->
+  <!-- HERO LOGO — Main Lockup     -->
+  <!-- ============================ -->
+  <g transform="translate(140, 140)">
+    <!-- Icon: dark rounded square with "e" -->
+    <g>
+      <rect x="0" y="0" width="180" height="180" rx="28" fill="#0d1b2a"/>
+      <!-- Stylized "e" — bold, modern -->
+      <text x="90" y="142" font-size="170" font-weight="900" fill="#ffffff" text-anchor="middle">e</text>
+      <!-- Three colored segments at bottom = Monopoly board reference -->
+      <rect x="32" y="158" width="36" height="6" fill="#e63946" rx="1"/>
+      <rect x="72" y="158" width="36" height="6" fill="#ffc107" rx="1"/>
+      <rect x="112" y="158" width="36" height="6" fill="#00b86b" rx="1"/>
+    </g>
+
+    <!-- Wordmark next to icon -->
+    <g transform="translate(220, 0)">
+      <text x="0" y="125" font-size="98" font-weight="900" fill="#0d1b2a" letter-spacing="-2">
+        <tspan fill="#00b86b">e</tspan><tspan>Monopolia</tspan>
+      </text>
+      <!-- Subtle accent strip -->
+      <g transform="translate(2, 145)">
+        <rect x="0" y="0" width="80" height="4" fill="#e63946"/>
+        <rect x="88" y="0" width="80" height="4" fill="#ffc107"/>
+        <rect x="176" y="0" width="80" height="4" fill="#00b86b"/>
+        <rect x="264" y="0" width="80" height="4" fill="#3a86ff"/>
+      </g>
+      <!-- Tagline -->
+      <text x="0" y="195" font-size="22" font-weight="400" fill="#6c757d" letter-spacing="6" font-family="'Helvetica Neue', Arial, sans-serif">
+        ИГРА ПРО ИНТЕРНЕТ
+      </text>
+    </g>
+  </g>
+
+  <!-- Separator -->
+  <line x1="100" y1="420" x2="1100" y2="420" stroke="#dee2e6" stroke-width="1"/>
+
+  <!-- ============================ -->
+  <!-- LABEL                       -->
+  <!-- ============================ -->
+  <text x="100" y="475" font-size="14" font-weight="700" fill="#adb5bd" letter-spacing="3" font-family="'Helvetica Neue', Arial, sans-serif">
+    ВАРИАНТЫ ИСПОЛЬЗОВАНИЯ
+  </text>
+
+  <!-- ============================ -->
+  <!-- VARIANT 1 — Icon only       -->
+  <!-- ============================ -->
+  <g transform="translate(140, 520)">
+    <rect x="0" y="0" width="180" height="180" rx="28" fill="#0d1b2a"/>
+    <text x="90" y="142" font-size="170" font-weight="900" fill="#ffffff" text-anchor="middle">e</text>
+    <rect x="32" y="158" width="36" height="6" fill="#e63946" rx="1"/>
+    <rect x="72" y="158" width="36" height="6" fill="#ffc107" rx="1"/>
+    <rect x="112" y="158" width="36" height="6" fill="#00b86b" rx="1"/>
+    <text x="90" y="220" font-size="13" font-weight="700" fill="#6c757d" text-anchor="middle" letter-spacing="2" font-family="'Helvetica Neue', Arial, sans-serif">
+      ИКОНКА
+    </text>
+  </g>
+
+  <!-- ============================ -->
+  <!-- VARIANT 2 — Wordmark only   -->
+  <!-- ============================ -->
+  <g transform="translate(400, 520)">
+    <text x="0" y="115" font-size="72" font-weight="900" fill="#0d1b2a" letter-spacing="-1.5">
+      <tspan fill="#00b86b">e</tspan><tspan>Monopolia</tspan>
+    </text>
+    <g transform="translate(2, 135)">
+      <rect x="0" y="0" width="60" height="3" fill="#e63946"/>
+      <rect x="66" y="0" width="60" height="3" fill="#ffc107"/>
+      <rect x="132" y="0" width="60" height="3" fill="#00b86b"/>
+      <rect x="198" y="0" width="60" height="3" fill="#3a86ff"/>
+    </g>
+    <text x="0" y="220" font-size="13" font-weight="700" fill="#6c757d" letter-spacing="2" font-family="'Helvetica Neue', Arial, sans-serif">
+      ТЕКСТОВЫЙ
+    </text>
+  </g>
+
+  <!-- ============================ -->
+  <!-- VARIANT 3 — Monochrome      -->
+  <!-- ============================ -->
+  <g transform="translate(900, 520)">
+    <rect x="0" y="0" width="180" height="180" rx="28" fill="#ffffff" stroke="#0d1b2a" stroke-width="3"/>
+    <text x="90" y="142" font-size="170" font-weight="900" fill="#0d1b2a" text-anchor="middle">e</text>
+    <rect x="32" y="158" width="36" height="6" fill="#0d1b2a" rx="1"/>
+    <rect x="72" y="158" width="36" height="6" fill="#0d1b2a" rx="1"/>
+    <rect x="112" y="158" width="36" height="6" fill="#0d1b2a" rx="1"/>
+    <text x="90" y="220" font-size="13" font-weight="700" fill="#6c757d" text-anchor="middle" letter-spacing="2" font-family="'Helvetica Neue', Arial, sans-serif">
+      МОНОХРОМ
+    </text>
+  </g>
+
+  <!-- ============================ -->
+  <!-- DARK BACKGROUND VERSION     -->
+  <!-- ============================ -->
+  <g transform="translate(140, 800)">
+    <rect x="-40" y="-40" width="1000" height="180" rx="12" fill="#0d1b2a"/>
+    <g>
+      <rect x="0" y="0" width="100" height="100" rx="16" fill="#00b86b"/>
+      <text x="50" y="78" font-size="94" font-weight="900" fill="#0d1b2a" text-anchor="middle">e</text>
+      <rect x="18" y="89" width="20" height="4" fill="#e63946" rx="1"/>
+      <rect x="40" y="89" width="20" height="4" fill="#ffc107" rx="1"/>
+      <rect x="62" y="89" width="20" height="4" fill="#0d1b2a" rx="1"/>
+    </g>
+    <text x="130" y="73" font-size="56" font-weight="900" fill="#ffffff" letter-spacing="-1">
+      <tspan fill="#00b86b">e</tspan><tspan>Monopolia</tspan>
+    </text>
+    <text x="130" y="105" font-size="14" font-weight="400" fill="#8da3b8" letter-spacing="4" font-family="'Helvetica Neue', Arial, sans-serif">
+      ИГРА ПРО ИНТЕРНЕТ
+    </text>
+  </g>
+</svg>

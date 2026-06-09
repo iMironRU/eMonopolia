@@ -1,0 +1,22 @@
+# Международная редакция - глобальный интернет.
+# Те же 22 поля, но образовательный контент про Google, Meta, Amazon.
+
+edition:
+  id: international
+  name: Международная
+  description: Игра про глобальный интернет. Google, Meta, Amazon.
+
+properties_used: all
+providers_used:  # переопределяем провайдеров под международные
+  - id: fibercom
+    name_override: GlobalNet
+  - id: netlink
+    name_override: WorldLink
+  - id: webwire
+    name_override: WebOcean
+  - id: meganet
+    name_override: MegaCore
+
+utilities_used: all
+
+content_override: en-international

@@ -1,0 +1,30 @@
+# Провайдеры (4 поля - аналог железных дорог)
+# Цена и залог одинаковые. Рента зависит от количества провайдеров у владельца.
+
+providers:
+  - id: fibercom
+    name: FiberCom
+    price: 200
+    mortgage: 100
+
+  - id: netlink
+    name: NetLink
+    price: 200
+    mortgage: 100
+
+  - id: webwire
+    name: WebWire
+    price: 200
+    mortgage: 100
+
+  - id: meganet
+    name: MegaNet
+    price: 200
+    mortgage: 100
+
+# Рента зависит от того, сколько провайдеров у владельца
+rent_table:
+  1: 25
+  2: 50
+  3: 100
+  4: 200

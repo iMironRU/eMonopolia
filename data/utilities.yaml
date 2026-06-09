@@ -1,0 +1,20 @@
+# Коммуналки (2 поля - аналог электростанции и водоканала)
+# Рента = выпавшее на кубиках * множитель.
+
+utilities:
+  - id: cloudcore
+    name: CloudCore
+    category: datacenter
+    price: 150
+    mortgage: 75
+
+  - id: nameforge
+    name: NameForge
+    category: domain_registrar
+    price: 150
+    mortgage: 75
+
+# Рента: бросок кубиков * множитель
+rent_multiplier:
+  1: 4   # одна коммуналка
+  2: 10  # обе коммуналки

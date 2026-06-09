@@ -1,0 +1,179 @@
+# Раскладка игрового поля eMonopolia
+# 40 клеток, нумерация по часовой стрелке от СТАРТа.
+# Позиция игрока на старте = 1.
+
+board:
+  size: 40
+  start_position: 1
+  pass_start_bonus: 200
+
+cells:
+  # === Нижняя сторона (1-11) ===
+  - position: 1
+    type: corner
+    subtype: start
+    name: СТАРТ
+
+  - position: 2
+    type: property
+    ref: letterly
+
+  - position: 3
+    type: card
+    deck: chest
+
+  - position: 4
+    type: property
+    ref: inboxpro
+
+  - position: 5
+    type: tax
+    name: Налог на рекламу
+    amount: 200
+
+  - position: 6
+    type: provider
+    ref: fibercom
+
+  - position: 7
+    type: property
+    ref: pinit
+
+  - position: 8
+    type: card
+    deck: chance
+
+  - position: 9
+    type: property
+    ref: snapster
+
+  - position: 10
+    type: property
+    ref: framely
+
+  - position: 11
+    type: corner
+    subtype: jail
+    name: БАН (просто смотришь)
+
+  # === Левая сторона (12-20) ===
+  - position: 12
+    type: property
+    ref: vidly
+
+  - position: 13
+    type: utility
+    ref: cloudcore
+
+  - position: 14
+    type: property
+    ref: clippro
+
+  - position: 15
+    type: property
+    ref: liveer
+
+  - position: 16
+    type: provider
+    ref: netlink
+
+  - position: 17
+    type: property
+    ref: bazaar
+
+  - position: 18
+    type: card
+    deck: chest
+
+  - position: 19
+    type: property
+    ref: shopster
+
+  - position: 20
+    type: property
+    ref: megamart
+
+  # === Верхняя сторона (21-31) ===
+  - position: 21
+    type: corner
+    subtype: free_parking
+    name: Офлайн
+
+  - position: 22
+    type: property
+    ref: streamix
+
+  - position: 23
+    type: card
+    deck: chance
+
+  - position: 24
+    type: property
+    ref: cinetto
+
+  - position: 25
+    type: property
+    ref: movieflow
+
+  - position: 26
+    type: provider
+    ref: webwire
+
+  - position: 27
+    type: property
+    ref: vibenet
+
+  - position: 28
+    type: property
+    ref: friendly
+
+  - position: 29
+    type: utility
+    ref: nameforge
+
+  - position: 30
+    type: property
+    ref: gramble
+
+  - position: 31
+    type: corner
+    subtype: go_to_jail
+    name: Под БАН!
+
+  # === Правая сторона (32-40) ===
+  - position: 32
+    type: property
+    ref: findster
+
+  - position: 33
+    type: property
+    ref: guglr
+
+  - position: 34
+    type: card
+    deck: chest
+
+  - position: 35
+    type: property
+    ref: lookr
+
+  - position: 36
+    type: provider
+    ref: meganet
+
+  - position: 37
+    type: card
+    deck: chance
+
+  - position: 38
+    type: property
+    ref: viralbox
+
+  - position: 39
+    type: tax
+    name: Лицензионный сбор
+    amount: 100
+
+  - position: 40
+    type: property
+    ref: tubeworld

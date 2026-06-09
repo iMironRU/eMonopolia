@@ -1,0 +1,116 @@
+# Карточки "Шанс" (16 штук)
+# Преимущественно негативные события - риски интернет-бизнеса.
+# Текст хранится здесь же т.к. карточки короткие; для длинного контента есть content/.
+
+chance:
+  - id: ddos_attack
+    title: DDoS-атака
+    text: Заплати 50 $NET за защиту от DDoS-атаки.
+    action:
+      type: pay_bank
+      amount: 50
+
+  - id: data_leak
+    title: Утечка персональных данных
+    text: Штраф Роскомнадзора — 150 $NET.
+    action:
+      type: pay_bank
+      amount: 150
+
+  - id: account_banned
+    title: Аккаунт заблокирован за нарушения
+    text: Иди на поле БАН.
+    action:
+      type: go_to_jail
+
+  - id: algorithm_update
+    title: Поисковик обновил алгоритм
+    text: Теряешь 3 трафика.
+    action:
+      type: lose_traffic
+      amount: 3
+
+  - id: cookie_law
+    title: Cookie-законы ужесточились
+    text: Заплати 75 $NET за переделку сайта.
+    action:
+      type: pay_bank
+      amount: 75
+
+  - id: trend_ended
+    title: Тренд закончился
+    text: Верни 5 трафика в банк.
+    action:
+      type: lose_traffic
+      amount: 5
+
+  - id: hosting_down
+    title: Хостинг лёг в чёрную пятницу
+    text: Заплати 100 $NET за восстановление.
+    action:
+      type: pay_bank
+      amount: 100
+
+  - id: content_stolen
+    title: Конкурент скопировал твой контент
+    text: Потерял 200 $NET выручки.
+    action:
+      type: pay_bank
+      amount: 200
+
+  - id: copyright_lawsuit
+    title: Иск за нарушение авторских прав
+    text: Заплати 150 $NET.
+    action:
+      type: pay_bank
+      amount: 150
+
+  - id: server_degradation
+    title: Деградация серверов
+    text: Заплати по 25 $NET за каждый "хостинг" на твоих полях.
+    action:
+      type: pay_per_hosting
+      amount: 25
+
+  - id: go_to_start
+    title: Иди на СТАРТ
+    text: Получи 200 $NET за прохождение.
+    action:
+      type: move_to
+      target: start
+
+  - id: go_to_nearest_datacenter
+    title: Иди на ближайший Датацентр
+    text: Заплати ренту × 2 владельцу.
+    action:
+      type: move_to_nearest
+      target: datacenter
+      multiplier: 2
+
+  - id: go_to_nearest_search
+    title: Иди на ближайший Поисковик
+    text: Если он принадлежит другому игроку, заплати обычную ренту.
+    action:
+      type: move_to_nearest
+      target: search_engine
+
+  - id: hater_attack
+    title: Хейтерская атака → стал героем
+    text: Твой ответ хейтерам вирусится. Каждый игрок платит тебе 50 $NET.
+    action:
+      type: collect_from_each
+      amount: 50
+
+  - id: digital_tax
+    title: Налог на цифровые услуги
+    text: Заплати 100 $NET.
+    action:
+      type: pay_bank
+      amount: 100
+
+  - id: redesign_delay
+    title: Редизайн затянулся
+    text: Пропусти следующий ход.
+    action:
+      type: skip_turn
+      count: 1

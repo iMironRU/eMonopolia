@@ -1,0 +1,374 @@
+# Покупаемые поля (22 штуки)
+# Источник истины для имени, цены, ренты, прокачки и трафика.
+# Обучающий текст хранится отдельно в content/{lang}/properties/{id}.md
+
+properties:
+  # === Коричневая группа — Почта ===
+  - id: letterly
+    name: Letterly
+    group: brown
+    category: email
+    price: 60
+    mortgage: 30
+    rent:
+      base: 2
+      with_monopoly: 4
+      with_hosting: [10, 30, 90, 160]
+      with_datacenter: 250
+    upgrade_cost: 50
+    traffic:
+      role: generator
+      rate: 1
+
+  - id: inboxpro
+    name: InboxPro
+    group: brown
+    category: email
+    price: 60
+    mortgage: 30
+    rent:
+      base: 4
+      with_monopoly: 8
+      with_hosting: [20, 60, 180, 320]
+      with_datacenter: 450
+    upgrade_cost: 50
+    traffic:
+      role: generator
+      rate: 1
+
+  # === Голубая группа — Фотохостинги ===
+  - id: pinit
+    name: PinIt
+    group: light_blue
+    category: photo_hosting
+    price: 100
+    mortgage: 50
+    rent:
+      base: 6
+      with_monopoly: 12
+      with_hosting: [30, 90, 270, 400]
+      with_datacenter: 550
+    upgrade_cost: 50
+    traffic:
+      role: generator
+      rate: 1
+
+  - id: snapster
+    name: Snapster
+    group: light_blue
+    category: photo_hosting
+    price: 100
+    mortgage: 50
+    rent:
+      base: 6
+      with_monopoly: 12
+      with_hosting: [30, 90, 270, 400]
+      with_datacenter: 550
+    upgrade_cost: 50
+    traffic:
+      role: generator
+      rate: 1
+
+  - id: framely
+    name: Framely
+    group: light_blue
+    category: photo_hosting
+    price: 120
+    mortgage: 60
+    rent:
+      base: 8
+      with_monopoly: 16
+      with_hosting: [40, 100, 300, 450]
+      with_datacenter: 600
+    upgrade_cost: 50
+    traffic:
+      role: generator
+      rate: 2
+
+  # === Розовая группа — Видеохостинги ===
+  - id: vidly
+    name: Vidly
+    group: pink
+    category: video_hosting
+    price: 140
+    mortgage: 70
+    rent:
+      base: 10
+      with_monopoly: 20
+      with_hosting: [50, 150, 450, 625]
+      with_datacenter: 750
+    upgrade_cost: 100
+    traffic:
+      role: generator
+      rate: 2
+
+  - id: clippro
+    name: ClipPro
+    group: pink
+    category: video_hosting
+    price: 140
+    mortgage: 70
+    rent:
+      base: 10
+      with_monopoly: 20
+      with_hosting: [50, 150, 450, 625]
+      with_datacenter: 750
+    upgrade_cost: 100
+    traffic:
+      role: generator
+      rate: 2
+
+  - id: liveer
+    name: Liveer
+    group: pink
+    category: video_hosting
+    price: 160
+    mortgage: 80
+    rent:
+      base: 12
+      with_monopoly: 24
+      with_hosting: [60, 180, 500, 700]
+      with_datacenter: 900
+    upgrade_cost: 100
+    traffic:
+      role: generator
+      rate: 2
+
+  # === Оранжевая группа — Маркетплейсы ===
+  - id: bazaar
+    name: Bazaar
+    group: orange
+    category: marketplace
+    price: 180
+    mortgage: 90
+    rent:
+      base: 14
+      with_monopoly: 28
+      with_hosting: [70, 200, 550, 750]
+      with_datacenter: 950
+    upgrade_cost: 100
+    traffic:
+      role: converter
+      rate_in: 10
+      rate_out: 50
+
+  - id: shopster
+    name: Shopster
+    group: orange
+    category: marketplace
+    price: 180
+    mortgage: 90
+    rent:
+      base: 14
+      with_monopoly: 28
+      with_hosting: [70, 200, 550, 750]
+      with_datacenter: 950
+    upgrade_cost: 100
+    traffic:
+      role: converter
+      rate_in: 10
+      rate_out: 50
+
+  - id: megamart
+    name: MegaMart
+    group: orange
+    category: marketplace
+    price: 200
+    mortgage: 100
+    rent:
+      base: 16
+      with_monopoly: 32
+      with_hosting: [80, 220, 600, 800]
+      with_datacenter: 1000
+    upgrade_cost: 100
+    traffic:
+      role: converter
+      rate_in: 10
+      rate_out: 60
+
+  # === Красная группа — Стриминг ===
+  - id: streamix
+    name: Streamix
+    group: red
+    category: streaming
+    price: 220
+    mortgage: 110
+    rent:
+      base: 18
+      with_monopoly: 36
+      with_hosting: [90, 250, 700, 875]
+      with_datacenter: 1050
+    upgrade_cost: 150
+    traffic:
+      role: converter
+      rate_in: 10
+      rate_out: 70
+
+  - id: cinetto
+    name: Cinetto
+    group: red
+    category: streaming
+    price: 220
+    mortgage: 110
+    rent:
+      base: 18
+      with_monopoly: 36
+      with_hosting: [90, 250, 700, 875]
+      with_datacenter: 1050
+    upgrade_cost: 150
+    traffic:
+      role: converter
+      rate_in: 10
+      rate_out: 70
+
+  - id: movieflow
+    name: MovieFlow
+    group: red
+    category: streaming
+    price: 240
+    mortgage: 120
+    rent:
+      base: 20
+      with_monopoly: 40
+      with_hosting: [100, 300, 750, 925]
+      with_datacenter: 1100
+    upgrade_cost: 150
+    traffic:
+      role: converter
+      rate_in: 10
+      rate_out: 80
+
+  # === Жёлтая группа — Соцсети ===
+  - id: vibenet
+    name: VibeNet
+    group: yellow
+    category: social_network
+    price: 260
+    mortgage: 130
+    rent:
+      base: 22
+      with_monopoly: 44
+      with_hosting: [110, 330, 800, 975]
+      with_datacenter: 1150
+    upgrade_cost: 150
+    traffic:
+      role: generator
+      rate: 5
+
+  - id: friendly
+    name: Friendly
+    group: yellow
+    category: social_network
+    price: 260
+    mortgage: 130
+    rent:
+      base: 22
+      with_monopoly: 44
+      with_hosting: [110, 330, 800, 975]
+      with_datacenter: 1150
+    upgrade_cost: 150
+    traffic:
+      role: generator
+      rate: 5
+
+  - id: gramble
+    name: Gramble
+    group: yellow
+    category: social_network
+    price: 280
+    mortgage: 140
+    rent:
+      base: 24
+      with_monopoly: 48
+      with_hosting: [120, 360, 850, 1025]
+      with_datacenter: 1200
+    upgrade_cost: 150
+    traffic:
+      role: generator
+      rate: 5
+
+  # === Зелёная группа — Поисковики ===
+  - id: findster
+    name: Findster
+    group: green
+    category: search_engine
+    price: 300
+    mortgage: 150
+    rent:
+      base: 26
+      with_monopoly: 52
+      with_hosting: [130, 390, 900, 1100]
+      with_datacenter: 1275
+    upgrade_cost: 200
+    traffic:
+      role: generator
+      rate: 5
+
+  - id: guglr
+    name: Guglr
+    group: green
+    category: search_engine
+    price: 300
+    mortgage: 150
+    rent:
+      base: 26
+      with_monopoly: 52
+      with_hosting: [130, 390, 900, 1100]
+      with_datacenter: 1275
+    upgrade_cost: 200
+    traffic:
+      role: generator
+      rate: 5
+
+  - id: lookr
+    name: Lookr
+    group: green
+    category: search_engine
+    price: 320
+    mortgage: 160
+    rent:
+      base: 28
+      with_monopoly: 56
+      with_hosting: [150, 450, 1000, 1200]
+      with_datacenter: 1400
+    upgrade_cost: 200
+    traffic:
+      role: generator
+      rate: 6
+
+  # === Тёмно-синяя группа — Видеогиганты ===
+  - id: viralbox
+    name: ViralBox
+    group: dark_blue
+    category: video_giant
+    price: 350
+    mortgage: 175
+    rent:
+      base: 35
+      with_monopoly: 70
+      with_hosting: [175, 500, 1100, 1300]
+      with_datacenter: 1500
+    upgrade_cost: 200
+    traffic:
+      role: hybrid
+      rate: 3
+      rate_in: 10
+      rate_out: 80
+
+  - id: tubeworld
+    name: TubeWorld
+    group: dark_blue
+    category: video_giant
+    price: 400
+    mortgage: 200
+    rent:
+      base: 50
+      with_monopoly: 100
+      with_hosting: [200, 600, 1400, 1700]
+      with_datacenter: 2000
+    upgrade_cost: 200
+    traffic:
+      role: hybrid
+      rate: 4
+      rate_in: 10
+      rate_out: 100

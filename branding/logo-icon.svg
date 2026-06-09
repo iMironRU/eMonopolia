@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180" font-family="'Arial Black', 'Helvetica Neue', sans-serif">
+  <rect x="0" y="0" width="180" height="180" rx="28" fill="#0d1b2a"/>
+  <text x="90" y="142" font-size="170" font-weight="900" fill="#ffffff" text-anchor="middle">e</text>
+  <rect x="32" y="158" width="36" height="6" fill="#e63946" rx="1"/>
+  <rect x="72" y="158" width="36" height="6" fill="#ffc107" rx="1"/>
+  <rect x="112" y="158" width="36" height="6" fill="#00b86b" rx="1"/>
+</svg>

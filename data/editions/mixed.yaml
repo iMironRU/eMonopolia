@@ -1,0 +1,14 @@
+# Смешанная редакция - дефолтная.
+# Включает все 22 поля. Имена и образовательный контент - смешанные (рунет + международные).
+
+edition:
+  id: mixed
+  name: Смешанная
+  description: Дефолтная редакция. Лучшее из рунета и международного интернета.
+  default: true
+
+properties_used: all  # все 22 поля из data/properties.yaml
+providers_used: all
+utilities_used: all
+
+# Карточки контента (из content/ru/properties/) используются по умолчанию
