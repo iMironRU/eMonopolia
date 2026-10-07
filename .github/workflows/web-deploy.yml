@@ -20,6 +20,10 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -31,12 +35,17 @@ jobs:
             apps/web/package-lock.json
       - name: Validate data
         run: npm ci && npm run validate:data
+      # Адрес сайта берём из настроек Pages, а не собираем из имени владельца:
+      # на аккаунте задан свой домен, и github.io отдаёт только редирект.
+      # В QR-коды адрес вшивается на сборке — ошибиться тут дорого.
+      - name: Configure Pages
+        id: pages
+        uses: actions/configure-pages@v5
       - name: Build static site
         working-directory: apps/web
         env:
-          # Сайт живёт по адресу https://<owner>.github.io/<repo>/
-          NEXT_PUBLIC_BASE_PATH: /${{ github.event.repository.name }}
-          NEXT_PUBLIC_SITE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
+          NEXT_PUBLIC_BASE_PATH: ${{ steps.pages.outputs.base_path }}
+          NEXT_PUBLIC_SITE_URL: ${{ steps.pages.outputs.base_url }}
         run: npm ci && npm run build
       - uses: actions/upload-pages-artifact@v3
         with:
