@@ -1,5 +1,5 @@
-# Деплой веб-приложения на GitHub Pages
-# Активируется когда apps/web будет готов
+# Деплой веб-приложения на GitHub Pages.
+# В настройках репозитория: Settings → Pages → Source: GitHub Actions.
 name: Deploy web app
 
 on:
@@ -9,24 +9,48 @@ on:
       - 'apps/web/**'
       - 'data/**'
       - 'content/**'
+      - 'scripts/**'
+      - '.github/workflows/web-deploy.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
 
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pages: write
-      id-token: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
-      # TODO: enable when apps/web exists
-      # - run: cd apps/web && npm ci && npm run build
-      # - uses: actions/upload-pages-artifact@v3
-      #   with:
-      #     path: apps/web/out
-      # - uses: actions/deploy-pages@v4
-      - name: TODO
-        run: echo "Web app not implemented yet"
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            apps/web/package-lock.json
+      - name: Validate data
+        run: npm ci && npm run validate:data
+      - name: Build static site
+        working-directory: apps/web
+        env:
+          # Сайт живёт по адресу https://<owner>.github.io/<repo>/
+          NEXT_PUBLIC_BASE_PATH: /${{ github.event.repository.name }}
+          NEXT_PUBLIC_SITE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
+        run: npm ci && npm run build
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: apps/web/out
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
