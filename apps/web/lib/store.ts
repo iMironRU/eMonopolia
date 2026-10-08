@@ -75,8 +75,30 @@ export interface Settings {
   jailFee: number;
 }
 
-interface GameState {
+/** Сетевой режим партии (P2P через WebRTC, см. lib/net.ts). */
+export interface NetState {
+  mode: 'local' | 'host' | 'guest';
+  roomCode: string | null;
+  /** Мой игрок (host/guest). В локальном режиме null — «банк» общий. */
+  myPlayerId: string | null;
+  /** Хост: token гостя → playerId, чтобы переподключаться после перезагрузки. */
+  tokens: Record<string, string>;
+  /** Гость: мой токен и имя для переподключения. */
+  guestToken: string | null;
+  guestName: string | null;
+}
+
+/** Действия, которые гость отправляет хосту (хост выполняет их у себя и рассылает состояние). */
+export const REMOTE_ACTIONS = [
+  'rollDice', 'endTurn', 'payJailFee', 'moveTo', 'sendToJail', 'addSkipTurn', 'adjustMoney', 'adjustTraffic',
+  'transferMoney', 'collectFromEach', 'setMortgaged', 'applyDirect', 'propose', 'vote', 'dismissTx',
+] as const;
+export type RemoteAction = (typeof REMOTE_ACTIONS)[number];
+
+export interface GameState {
   started: boolean;
+  net: NetState;
+  setNet: (patch: Partial<NetState>) => void;
   settings: Settings;
   players: Player[];
   ownership: Record<string, Ownership>;
@@ -114,6 +136,7 @@ const uid = () => Math.random().toString(36).slice(2, 10);
 const d6 = () => 1 + Math.floor(Math.random() * 6);
 
 const FRESH_TURN: Turn = { current: 0, rolled: false, doubles: 0, lastRoll: null, landed: null, passedStart: false };
+export const FRESH_NET: NetState = { mode: 'local', roomCode: null, myPlayerId: null, tokens: {}, guestToken: null, guestName: null };
 
 /** Сдвиг по кольцу из `size` клеток с нумерацией от 1. Возвращает новую позицию и признак прохода через старт. */
 export function advance(position: number, steps: number, board: BoardRules): { position: number; passedStart: boolean } {
@@ -191,6 +214,8 @@ export const useGame = create<GameState>()(
       txs: [],
       log: [],
       turn: FRESH_TURN,
+      net: FRESH_NET,
+      setNet: (patch) => set((s) => ({ net: { ...s.net, ...patch } })),
 
       setup: (players, settings) =>
         set({
@@ -213,7 +238,7 @@ export const useGame = create<GameState>()(
           log: [{ id: uid(), ts: Date.now(), text: `Новая партия: ${players.map((p) => p.name).join(', ')}. Стартовый капитал ${settings.startMoney} $NET.` }],
         }),
 
-      reset: () => set({ started: false, players: [], ownership: {}, txs: [], log: [], turn: FRESH_TURN }),
+      reset: () => set({ started: false, players: [], ownership: {}, txs: [], log: [], turn: FRESH_TURN, net: FRESH_NET }),
 
       rollDice: (board, trafficIncome) =>
         set((s) => {
@@ -432,7 +457,7 @@ export const useGame = create<GameState>()(
     {
       name: 'emonopolia-game-v1',
       skipHydration: true,
-      version: 2,
+      version: 3,
       // v1 → v2: у игроков появились позиция и БАН, у партии — ход.
       migrate: (persisted, version) => {
         const s = persisted as Partial<GameState>;
@@ -440,6 +465,7 @@ export const useGame = create<GameState>()(
           s.players = (s.players ?? []).map((p) => ({ ...p, position: p.position ?? 1, inJail: p.inJail ?? false, jailTurns: p.jailTurns ?? 0, skipTurns: p.skipTurns ?? 0 }));
           s.turn = FRESH_TURN;
         }
+        if (version < 3) s.net = FRESH_NET;
         return s as GameState;
       },
     },

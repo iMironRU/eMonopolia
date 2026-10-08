@@ -21,6 +21,7 @@ import {
   utilityRent,
 } from '@/lib/rules';
 import { PLAYER_COLORS, describeTx, useGame, type BoardRules, type TxPayload } from '@/lib/store';
+import { hostRoom, hostStart, joinRoom, joinUrl, leaveRoom, resumeGuest, resumeHost, useNet } from '@/lib/net';
 import { useHydrated } from './StoreHydrator';
 import { Board, type BoardView } from './Board';
 import { cellHref, cellTitle } from './CellTile';
@@ -51,6 +52,13 @@ const ACTIONS: { id: Action; label: string; icon: string }[] = [
 export function GameScreen({ catalog }: { catalog: Catalog }) {
   const hydrated = useHydrated();
   const started = useGame((s) => s.started);
+  const mode = useGame((s) => s.net.mode);
+  useEffect(() => {
+    if (!hydrated) return;
+    if (mode === 'host') void resumeHost();
+    if (mode === 'guest') void resumeGuest();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hydrated]);
   if (!hydrated) return <div className="text-sm text-muted">Загрузка партии…</div>;
   return started ? <Table catalog={catalog} /> : <Setup />;
 }
@@ -58,58 +66,248 @@ export function GameScreen({ catalog }: { catalog: Catalog }) {
 /* ---------------------------------------------------------------- Setup */
 
 function Setup() {
-  const setup = useGame((s) => s.setup);
+  const g = useGame();
+  const net = useNet();
+  const [mode, setMode] = useState<'local' | 'host' | 'join'>(g.net.mode === 'guest' ? 'join' : g.net.mode === 'host' ? 'host' : 'local');
   const [names, setNames] = useState(['', '', '', '']);
   const [startMoney, setStartMoney] = useState(1500);
   const [passStartBonus, setPassStartBonus] = useState(200);
+  const [myName, setMyName] = useState(g.net.guestName ?? '');
+  const [code, setCode] = useState(g.net.roomCode ?? '');
+  const [busy, setBusy] = useState(false);
+  const [qr, setQr] = useState<string | null>(null);
   const valid = names.filter((n) => n.trim()).length >= 2;
+  const settings = { startMoney, passStartBonus, jailFee: 50 };
+
+  // Ссылка-приглашение ?join=CODE
+  useEffect(() => {
+    const c = new URLSearchParams(window.location.search).get('join');
+    if (c && g.net.mode === 'local') {
+      setMode('join');
+      setCode(c.toUpperCase());
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // QR с приглашением для хоста
+  useEffect(() => {
+    if (g.net.mode !== 'host' || !g.net.roomCode) return setQr(null);
+    let alive = true;
+    import('qrcode').then((m) => m.toDataURL(joinUrl(g.net.roomCode!), { margin: 1, width: 220, color: { dark: '#0d1b2a' } })).then((url) => alive && setQr(url));
+    return () => {
+      alive = false;
+    };
+  }, [g.net.mode, g.net.roomCode]);
+
+  const hostLobby = g.net.mode === 'host' && g.net.roomCode;
+  const guestWaiting = g.net.mode === 'guest' && g.net.roomCode;
 
   return (
     <div className="mx-auto max-w-md space-y-4">
       <h1 className="text-2xl font-black">Новая партия</h1>
-      <p className="text-sm text-muted">
-        Один телефон на стол — «банк». Игроки по очереди нажимают свои кнопки, а сделки подтверждают большинством.
-      </p>
-      <div className="card space-y-2">
-        {names.map((n, i) => (
-          <div key={i} className="flex items-center gap-2">
-            <span className="size-4 rounded-full" style={{ background: PLAYER_COLORS[i] }} />
-            <input
-              className="input"
-              placeholder={`Игрок ${i + 1}`}
-              value={n}
-              onChange={(e) => setNames(names.map((x, j) => (j === i ? e.target.value : x)))}
-            />
+
+      {!hostLobby && !guestWaiting && (
+        <div className="grid grid-cols-3 gap-1 rounded-xl bg-navy/5 p-1 text-sm font-semibold">
+          {(
+            [
+              ['local', '📱 Один телефон'],
+              ['host', '🏠 Создать комнату'],
+              ['join', '🔗 Войти по коду'],
+            ] as const
+          ).map(([m, label]) => (
+            <button key={m} className={`rounded-lg px-2 py-2 ${mode === m ? 'bg-white shadow' : 'text-navy/60'}`} onClick={() => setMode(m)}>
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {mode === 'local' && !hostLobby && !guestWaiting && (
+        <>
+          <p className="text-sm text-muted">Один телефон на стол — «банк». Игроки по очереди нажимают свои кнопки, а сделки подтверждают большинством.</p>
+          <div className="card space-y-2">
+            {names.map((n, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <span className="size-4 rounded-full" style={{ background: PLAYER_COLORS[i] }} />
+                <input className="input" placeholder={`Игрок ${i + 1}`} value={n} onChange={(e) => setNames(names.map((x, j) => (j === i ? e.target.value : x)))} />
+              </div>
+            ))}
+            {names.length < 6 && (
+              <button className="btn-ghost w-full" onClick={() => setNames([...names, ''])}>
+                + ещё игрок
+              </button>
+            )}
           </div>
-        ))}
-        {names.length < 6 && (
-          <button className="btn-ghost w-full" onClick={() => setNames([...names, ''])}>
-            + ещё игрок
+          <SettingsFields startMoney={startMoney} setStartMoney={setStartMoney} passStartBonus={passStartBonus} setPassStartBonus={setPassStartBonus} />
+          <button
+            className="btn-primary w-full text-base"
+            disabled={!valid}
+            onClick={() => g.setup(names.map((n, i) => ({ name: n.trim(), color: PLAYER_COLORS[i] })).filter((p) => p.name), settings)}
+          >
+            Начать игру
           </button>
-        )}
-      </div>
-      <div className="card grid grid-cols-2 gap-3">
-        <label className="text-sm">
-          <span className="text-muted">Стартовый капитал</span>
-          <input className="input mt-1" type="number" value={startMoney} onChange={(e) => setStartMoney(Number(e.target.value))} />
-        </label>
-        <label className="text-sm">
-          <span className="text-muted">Бонус за СТАРТ</span>
-          <input className="input mt-1" type="number" value={passStartBonus} onChange={(e) => setPassStartBonus(Number(e.target.value))} />
-        </label>
-      </div>
-      <button
-        className="btn-primary w-full text-base"
-        disabled={!valid}
-        onClick={() =>
-          setup(
-            names.map((n, i) => ({ name: n.trim(), color: PLAYER_COLORS[i] })).filter((p) => p.name),
-            { startMoney, passStartBonus, jailFee: 50 },
-          )
-        }
-      >
-        Начать игру
-      </button>
+        </>
+      )}
+
+      {mode === 'host' && !hostLobby && (
+        <>
+          <p className="text-sm text-muted">
+            Каждый играет со своего телефона. Этот телефон создаёт комнату и остаётся «банком»: пока он онлайн, партия идёт. Связь напрямую между телефонами (WebRTC).
+          </p>
+          <div className="card space-y-2">
+            <label className="block text-sm">
+              <span className="text-muted">Ваше имя</span>
+              <input className="input mt-1" value={myName} onChange={(e) => setMyName(e.target.value)} placeholder="Хост" />
+            </label>
+          </div>
+          <SettingsFields startMoney={startMoney} setStartMoney={setStartMoney} passStartBonus={passStartBonus} setPassStartBonus={setPassStartBonus} />
+          {net.error && <p className="text-sm text-[#e63946]">{net.error}</p>}
+          <button
+            className="btn-primary w-full text-base"
+            disabled={!myName.trim() || busy}
+            onClick={async () => {
+              setBusy(true);
+              try {
+                await hostRoom(myName.trim());
+              } finally {
+                setBusy(false);
+              }
+            }}
+          >
+            {busy ? 'Создаём комнату…' : 'Создать комнату'}
+          </button>
+        </>
+      )}
+
+      {hostLobby && (
+        <>
+          <div className="card space-y-3 text-center">
+            <div className="text-xs uppercase tracking-wider text-muted">Код комнаты</div>
+            <div className="text-5xl font-black tracking-[0.3em]">{g.net.roomCode}</div>
+            {qr && <img src={qr} alt="QR для входа" className="mx-auto size-44 rounded-lg" />}
+            <div className="text-xs text-muted break-all">{joinUrl(g.net.roomCode!)}</div>
+            <div className="text-xs">
+              {net.status === 'open' ? '🟢 Комната открыта' : net.status === 'error' ? `🔴 ${net.error}` : '🟡 Подключаемся…'}
+            </div>
+          </div>
+          <div className="card space-y-1">
+            <div className="text-sm font-semibold">Игроки ({1 + net.lobby.length})</div>
+            <div className="flex items-center gap-2 text-sm">
+              <span className="size-3 rounded-full" style={{ background: PLAYER_COLORS[0] }} /> {g.net.guestName} <span className="text-xs text-muted">хост</span>
+            </div>
+            {net.lobby.map((l, i) => (
+              <div key={l.token} className="flex items-center gap-2 text-sm">
+                <span className="size-3 rounded-full" style={{ background: PLAYER_COLORS[(i + 1) % PLAYER_COLORS.length] }} /> {l.name}{' '}
+                <span className="text-xs text-muted">{l.online ? 'онлайн' : 'отключился'}</span>
+              </div>
+            ))}
+            {net.lobby.length === 0 && <div className="text-sm text-muted">Ждём, когда остальные отсканируют QR или введут код…</div>}
+          </div>
+          <SettingsFields startMoney={startMoney} setStartMoney={setStartMoney} passStartBonus={passStartBonus} setPassStartBonus={setPassStartBonus} />
+          <button className="btn-primary w-full text-base" disabled={net.lobby.length < 1} onClick={() => hostStart(settings)}>
+            Начать игру ({1 + net.lobby.length} игр.)
+          </button>
+          <button
+            className="btn-ghost w-full"
+            onClick={async () => {
+              await leaveRoom();
+              g.setNet({ mode: 'local', roomCode: null, tokens: {}, myPlayerId: null });
+              setMode('local');
+            }}
+          >
+            Закрыть комнату
+          </button>
+        </>
+      )}
+
+      {mode === 'join' && !guestWaiting && (
+        <>
+          <p className="text-sm text-muted">Введите код комнаты с телефона хоста или откройте его ссылку.</p>
+          <div className="card space-y-2">
+            <label className="block text-sm">
+              <span className="text-muted">Код комнаты</span>
+              <input className="input mt-1 text-center text-2xl font-black uppercase tracking-[0.3em]" value={code} maxLength={4} onChange={(e) => setCode(e.target.value.toUpperCase())} placeholder="ABCD" />
+            </label>
+            <label className="block text-sm">
+              <span className="text-muted">Ваше имя</span>
+              <input className="input mt-1" value={myName} onChange={(e) => setMyName(e.target.value)} placeholder="Игрок" />
+            </label>
+          </div>
+          {net.error && <p className="text-sm text-[#e63946]">{net.error}</p>}
+          <button
+            className="btn-primary w-full text-base"
+            disabled={code.trim().length < 4 || !myName.trim() || busy}
+            onClick={async () => {
+              setBusy(true);
+              try {
+                await joinRoom(code.trim(), myName.trim());
+              } finally {
+                setBusy(false);
+              }
+            }}
+          >
+            {busy ? 'Подключаемся…' : 'Войти'}
+          </button>
+        </>
+      )}
+
+      {guestWaiting && (
+        <>
+          <div className="card space-y-2 text-center">
+            <div className="text-xs uppercase tracking-wider text-muted">Комната</div>
+            <div className="text-4xl font-black tracking-[0.3em]">{g.net.roomCode}</div>
+            <div className="text-sm">
+              {net.status === 'open' ? '🟢 Подключено. Ждём, когда хост начнёт игру.' : net.status === 'error' ? `🔴 ${net.error}` : '🟡 Подключаемся к хосту…'}
+            </div>
+          </div>
+          {net.lobby.length > 0 && (
+            <div className="card space-y-1">
+              <div className="text-sm font-semibold">Игроки</div>
+              {net.lobby.map((l, i) => (
+                <div key={l.token} className="flex items-center gap-2 text-sm">
+                  <span className="size-3 rounded-full" style={{ background: PLAYER_COLORS[i % PLAYER_COLORS.length] }} /> {l.name}{' '}
+                  {i === 0 && <span className="text-xs text-muted">хост</span>}
+                </div>
+              ))}
+            </div>
+          )}
+          <button
+            className="btn-ghost w-full"
+            onClick={async () => {
+              await leaveRoom();
+              g.setNet({ mode: 'local', roomCode: null, myPlayerId: null });
+              setMode('join');
+            }}
+          >
+            Выйти из комнаты
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
+function SettingsFields({
+  startMoney,
+  setStartMoney,
+  passStartBonus,
+  setPassStartBonus,
+}: {
+  startMoney: number;
+  setStartMoney: (n: number) => void;
+  passStartBonus: number;
+  setPassStartBonus: (n: number) => void;
+}) {
+  return (
+    <div className="card grid grid-cols-2 gap-3">
+      <label className="text-sm">
+        <span className="text-muted">Стартовый капитал</span>
+        <input className="input mt-1" type="number" value={startMoney} onChange={(e) => setStartMoney(Number(e.target.value))} />
+      </label>
+      <label className="text-sm">
+        <span className="text-muted">Бонус за СТАРТ</span>
+        <input className="input mt-1" type="number" value={passStartBonus} onChange={(e) => setPassStartBonus(Number(e.target.value))} />
+      </label>
     </div>
   );
 }
@@ -148,14 +346,30 @@ function Table({ catalog }: { catalog: Catalog }) {
     }
   };
 
-  const me = g.players[g.turn.current];
+  const net = useNet();
+  const online = g.net.mode !== 'local';
+  const current = g.players[g.turn.current];
+  // В онлайне «я» — игрок этого телефона; локально «банк» общий и «я» — тот, кто ходит
+  const me = online ? g.players.find((p) => p.id === g.net.myPlayerId) ?? current : current;
+  const myTurn = !online || me?.id === current?.id;
   const rules = boardRules(catalog);
   const pending = g.txs.filter((t) => t.status === 'pending');
   const ownedBy = (pid: string) => Object.entries(g.ownership).filter(([, o]) => o.owner === pid).map(([id]) => id);
-  const myOwned = me ? ownedBy(me.id) : [];
-  const income = me ? trafficIncome(catalog, myOwned, myOwned.filter((id) => g.ownership[id].mortgaged)) : 0;
-  const canRoll = !!me && (!g.turn.rolled || (g.turn.doubles > 0 && !me.inJail));
-  const canEnd = !!me && g.turn.rolled && !(g.turn.doubles > 0 && !me.inJail);
+  const curOwned = current ? ownedBy(current.id) : [];
+  const income = current ? trafficIncome(catalog, curOwned, curOwned.filter((id) => g.ownership[id].mortgaged)) : 0;
+  const canRoll = myTurn && !!current && (!g.turn.rolled || (g.turn.doubles > 0 && !current.inJail));
+  const canEnd = myTurn && !!current && g.turn.rolled && !(g.turn.doubles > 0 && !current.inJail);
+
+  // В онлайне бросок происходит у хоста: показываем анимацию всем, когда приходит новый результат
+  const rollKey = g.turn.lastRoll ? `${g.turn.current}-${g.turn.lastRoll[0]}${g.turn.lastRoll[1]}-${g.turn.doubles}-${g.turn.landed}` : '';
+  useEffect(() => {
+    if (!online || !g.turn.lastRoll) return;
+    setRolling(false);
+    setShowDice(true);
+    const id = window.setTimeout(() => setShowDice(false), 2500);
+    return () => window.clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rollKey, online]);
 
   function roll() {
     if (!canRoll || rolling) return;
@@ -166,8 +380,10 @@ function Table({ catalog }: { catalog: Catalog }) {
     // Короткая анимация «кубики крутятся», затем настоящий бросок из стора
     window.setTimeout(() => {
       g.rollDice(rules, income);
-      setRolling(false);
+      // Локально результат уже есть; в онлайне ждём ответа хоста (см. эффект по rollKey)
+      if (!online) setRolling(false);
     }, 650);
+    if (online) window.setTimeout(() => setRolling(false), 4000);
   }
   function endTurn() {
     setPaid(null);
@@ -176,7 +392,7 @@ function Table({ catalog }: { catalog: Catalog }) {
     g.endTurn();
   }
 
-  if (!me) return null;
+  if (!me || !current) return null;
 
   return (
     <div
@@ -191,7 +407,10 @@ function Table({ catalog }: { catalog: Catalog }) {
           </span>
           <span className="min-w-0">
             <span className="block truncate text-sm font-bold leading-tight">{me.name}</span>
-            <span className="block text-[10px] uppercase tracking-wider text-white/60">ходит</span>
+            <span className="block truncate text-[10px] uppercase tracking-wider text-white/60">
+              {myTurn ? 'ходит' : `ходит ${current.name}`}
+              {online && net.status !== 'open' && ' · ⚠️ связь'}
+            </span>
           </span>
         </button>
         <div className="flex items-center gap-2">
@@ -217,7 +436,7 @@ function Table({ catalog }: { catalog: Catalog }) {
 
         {showDice && <Dice rolling={rolling} roll={g.turn.lastRoll} />}
 
-        {!rolling && (
+        {!rolling && myTurn && (
           <LandingCard
             catalog={catalog}
             paid={paid}
@@ -235,7 +454,12 @@ function Table({ catalog }: { catalog: Catalog }) {
           <TabButton icon="👥" label="Игроки" onClick={() => setTab('players')} />
           <TabButton icon="⚡" label="Действия" onClick={() => setTab('actions')} />
           <div className="flex flex-col items-center">
-            {canRoll ? (
+            {!myTurn ? (
+              <div className="-mt-6 grid size-[76px] place-items-center rounded-full border-4 border-white/10 bg-white/10 text-center">
+                <span className="text-2xl leading-none">⏳</span>
+                <span className="mt-0.5 block px-1 text-[9px] font-black uppercase leading-tight tracking-wider">ход {current.name.slice(0, 8)}</span>
+              </div>
+            ) : canRoll ? (
               <button
                 onClick={roll}
                 disabled={rolling}
@@ -315,17 +539,45 @@ function Table({ catalog }: { catalog: Catalog }) {
           <Link href="/qr/" className="btn-ghost w-full justify-start">
             🖨️ QR-коды и печать
           </Link>
-          <button
-            className="btn-danger w-full justify-start"
-            onClick={() => {
-              if (confirm('Завершить партию и стереть состояние?')) {
-                g.reset();
-                setTab(null);
-              }
-            }}
-          >
-            ⏹ Завершить партию
-          </button>
+          {online && (
+            <div className="card text-sm">
+              <div className="font-semibold">
+                {g.net.mode === 'host' ? '🏠 Вы хост комнаты' : '🔗 Вы в комнате'} <span className="font-black tracking-[0.2em]">{g.net.roomCode}</span>
+              </div>
+              <div className="mt-1 text-xs text-muted">
+                {net.status === 'open' ? '🟢 связь есть' : net.status === 'error' ? `🔴 ${net.error}` : '🟡 переподключаемся…'}
+                {g.net.mode === 'host' && ` · гостей онлайн: ${Object.entries(net.online).filter(([id, v]) => v && id !== g.net.myPlayerId).length} из ${Object.keys(g.net.tokens).length}`}
+              </div>
+              {g.net.mode === 'host' && <div className="mt-1 text-xs text-muted">Пока этот телефон онлайн, партия идёт. Гости могут переподключаться.</div>}
+            </div>
+          )}
+          {g.net.mode === 'guest' ? (
+            <button
+              className="btn-danger w-full justify-start"
+              onClick={async () => {
+                if (confirm('Выйти из комнаты? Партия у хоста продолжится без вас.')) {
+                  await leaveRoom();
+                  g.reset();
+                  setTab(null);
+                }
+              }}
+            >
+              🚪 Выйти из комнаты
+            </button>
+          ) : (
+            <button
+              className="btn-danger w-full justify-start"
+              onClick={async () => {
+                if (confirm(online ? 'Завершить партию и закрыть комнату?' : 'Завершить партию и стереть состояние?')) {
+                  await leaveRoom();
+                  g.reset();
+                  setTab(null);
+                }
+              }}
+            >
+              ⏹ Завершить партию
+            </button>
+          )}
         </div>
       </Sheet>
     </div>
@@ -650,6 +902,8 @@ function LandingCard({
 
 function PlayersList({ catalog }: { catalog: Catalog }) {
   const g = useGame();
+  const net = useNet();
+  const online = g.net.mode !== 'local';
   const ownedBy = (pid: string) => Object.entries(g.ownership).filter(([, o]) => o.owner === pid).map(([id]) => id);
   return (
     <div className="space-y-3">
@@ -663,7 +917,9 @@ function PlayersList({ catalog }: { catalog: Catalog }) {
           <div key={p.id} className={`card space-y-2 ${isCurrent ? 'ring-2 ring-brand' : ''}`} style={{ borderTop: `6px solid ${p.color}` }}>
             <div className="flex items-baseline justify-between">
               <div className="text-lg font-bold">
+                {online && <span className="mr-1 text-xs">{net.online[p.id] ? '🟢' : '⚪'}</span>}
                 {p.name}
+                {online && p.id === g.net.myPlayerId && <span className="ml-1 text-xs text-muted">(вы)</span>}
                 {isCurrent && <span className="ml-2 text-xs font-semibold text-brand">ходит</span>}
               </div>
               {synergy && <span className="rounded bg-brand/10 px-1.5 text-xs font-semibold text-brand">экосистема +{SYNERGY_BONUS_PERCENT}%</span>}
@@ -713,6 +969,7 @@ function PlayersList({ catalog }: { catalog: Catalog }) {
 
 function PendingList() {
   const g = useGame();
+  const online = g.net.mode !== 'local';
   const pending = g.txs.filter((t) => t.status === 'pending');
   const recent = g.txs.filter((t) => t.status !== 'pending').slice(-5).reverse();
   return (
@@ -733,6 +990,12 @@ function PendingList() {
                   return (
                     <span key={p.id} className="rounded-full bg-navy/5 px-2 py-1 text-xs" style={{ borderLeft: `4px solid ${p.color}` }}>
                       {p.name}: {v ? '✅' : '❌'}
+                    </span>
+                  );
+                if (online && p.id !== g.net.myPlayerId)
+                  return (
+                    <span key={p.id} className="rounded-full bg-navy/5 px-2 py-1 text-xs text-muted" style={{ borderLeft: `4px solid ${p.color}` }}>
+                      {p.name}: ждём…
                     </span>
                   );
                 return (
@@ -918,7 +1181,7 @@ function BuyForm({ catalog, onDone }: { catalog: Catalog; onDone: () => void }) 
   // По умолчанию — текущий игрок и клетка, на которую он только что встал (если она свободна)
   const landedCell = g.turn.landed ? catalog.cells.find((c) => c.position === g.turn.landed) : undefined;
   const landedFree = landedCell && 'ref' in landedCell && !g.ownership[landedCell.ref] ? landedCell.ref : '';
-  const [player, setPlayer] = useState(g.players[g.turn.current]?.id ?? '');
+  const [player, setPlayer] = useState(g.net.myPlayerId ?? g.players[g.turn.current]?.id ?? '');
   const [fieldId, setFieldId] = useState(landedFree);
   const [price, setPrice] = useState<number | null>(null);
   const free = allFields(catalog).filter((f) => !g.ownership[f.id]);
