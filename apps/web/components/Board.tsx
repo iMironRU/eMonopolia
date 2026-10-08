@@ -1,5 +1,6 @@
 'use client';
 import Link from 'next/link';
+import { useEffect, useState } from 'react';
 import type { Catalog, Cell } from '@/lib/types';
 import { GROUP_META, findField } from '@/lib/rules';
 import { cellHref, cellTitle } from './CellTile';
@@ -47,7 +48,14 @@ function cellIcon(cell: Cell): string {
   return '';
 }
 
-/** Игровое поле с фишками. Активная клетка подсвечивается. */
+const TILT = 55; // наклон доски, градусов
+const TURN = 45; // поворот доски в плоскости, градусов
+const ISO_SCALE = 0.72; // чтобы ромб влез по ширине
+const VIEW_KEY = 'emonopolia-board-view';
+
+export type BoardView = 'iso' | 'flat';
+
+/** Игровое поле с фишками. Изометрия (как в мобильных «Монополиях») или плоский вид. */
 export function Board({
   catalog,
   tokens,
@@ -60,84 +68,161 @@ export function Board({
   /** fieldId → цвет владельца, чтобы показать, чьё поле */
   ownership?: Record<string, string>;
 }) {
-  return (
-    <div className="mx-auto w-full max-w-[640px]">
-      <div
-        className="grid aspect-square w-full gap-[2px] rounded-xl bg-navy/10 p-[2px]"
-        style={{ gridTemplateColumns: 'repeat(11, minmax(0, 1fr))', gridTemplateRows: 'repeat(11, minmax(0, 1fr))' }}
-      >
-        {catalog.cells.map((cell) => {
-          const { row, col } = cellCoords(cell.position);
-          const color = cellColor(catalog, cell);
-          const here = tokens.filter((t) => t.position === cell.position);
-          const title = cellTitle(catalog, cell);
-          const href = cellHref(cell);
-          const isCorner = cell.type === 'corner';
-          const ownerColor = 'ref' in cell ? ownership?.[cell.ref] : undefined;
-          const active = highlight === cell.position;
-          // Цветная полоска — на внутренней стороне клетки (как на настоящей доске)
-          const stripe =
-            row === 10 ? 'border-t-[5px]' : row === 0 ? 'border-b-[5px]' : col === 0 ? 'border-r-[5px]' : 'border-l-[5px]';
+  const [view, setView] = useState<BoardView>('iso');
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(VIEW_KEY);
+      if (saved === 'flat' || saved === 'iso') setView(saved);
+    } catch {
+      /* нет localStorage — остаёмся в изометрии */
+    }
+  }, []);
+  const toggle = () => {
+    const next: BoardView = view === 'iso' ? 'flat' : 'iso';
+    setView(next);
+    try {
+      localStorage.setItem(VIEW_KEY, next);
+    } catch {
+      /* ignore */
+    }
+  };
+  const iso = view === 'iso';
 
-          const inner = (
-            <div
-              className={`relative flex h-full w-full flex-col items-center justify-between overflow-hidden rounded-[3px] bg-white p-[2px] text-[8px] leading-none sm:text-[10px] ${isCorner ? '' : stripe} ${active ? 'ring-2 ring-brand ring-offset-1' : ''}`}
-              style={{ borderColor: color, ...(isCorner ? { background: '#e9ecef' } : {}) }}
-              title={`${cell.position}. ${title}`}
-            >
-              <div className="flex w-full items-start justify-between">
-                <span className="font-bold text-muted">{cell.position}</span>
-                {ownerColor && <span className="size-[6px] rounded-full sm:size-2" style={{ background: ownerColor }} />}
+  // Фишки лежат отдельным слоем поверх сетки: так их можно «поставить» вертикально
+  // в 3D и плавно переезжать между клетками.
+  const byCell = new Map<number, Token[]>();
+  for (const t of tokens) byCell.set(t.position, [...(byCell.get(t.position) ?? []), t]);
+
+  return (
+    <div className="relative mx-auto w-full max-w-[720px]">
+      <button
+        type="button"
+        onClick={toggle}
+        className="absolute right-0 top-0 z-10 rounded-md border border-navy/15 bg-white/90 px-2 py-1 text-xs font-semibold text-navy/80 hover:bg-navy/5"
+        title="Переключить вид доски"
+      >
+        {iso ? '⬒ Плоская' : '◈ 3D'}
+      </button>
+
+      <div className={`relative w-full ${iso ? 'aspect-[25/17]' : 'aspect-square'}`} style={iso ? { perspective: '1400px', perspectiveOrigin: '50% 40%' } : undefined}>
+        <div
+          className={`absolute left-0 top-0 grid aspect-square w-full gap-[2px] rounded-xl bg-navy/10 p-[2px] transition-transform duration-500 ${iso ? 'shadow-2xl' : ''}`}
+          style={{
+            gridTemplateColumns: 'repeat(11, minmax(0, 1fr))',
+            gridTemplateRows: 'repeat(11, minmax(0, 1fr))',
+            transformStyle: 'preserve-3d',
+            transformOrigin: '50% 50%',
+            transform: iso ? `translateY(-22%) rotateX(${TILT}deg) rotateZ(${TURN}deg) scale(${ISO_SCALE})` : 'none',
+          }}
+        >
+          {catalog.cells.map((cell) => {
+            const { row, col } = cellCoords(cell.position);
+            const color = cellColor(catalog, cell);
+            const title = cellTitle(catalog, cell);
+            const href = cellHref(cell);
+            const isCorner = cell.type === 'corner';
+            const ownerColor = 'ref' in cell ? ownership?.[cell.ref] : undefined;
+            const active = highlight === cell.position;
+            // Цветная полоска — на внутренней стороне клетки (как на настоящей доске)
+            const stripe =
+              row === 10 ? 'border-t-[5px]' : row === 0 ? 'border-b-[5px]' : col === 0 ? 'border-r-[5px]' : 'border-l-[5px]';
+
+            const inner = (
+              <div
+                className={`relative flex h-full w-full flex-col items-center justify-between overflow-hidden rounded-[3px] bg-white p-[2px] text-[8px] leading-none sm:text-[10px] ${isCorner ? '' : stripe} ${active ? 'ring-2 ring-brand ring-offset-1' : ''}`}
+                style={{ borderColor: color, ...(isCorner ? { background: '#e9ecef' } : {}) }}
+                title={`${cell.position}. ${title}`}
+              >
+                <div className="flex w-full items-start justify-between">
+                  <span className="font-bold text-muted">{cell.position}</span>
+                  {ownerColor && <span className="size-[6px] rounded-full sm:size-2" style={{ background: ownerColor }} />}
+                </div>
+                <div className="text-center">
+                  {isCorner || cell.type === 'card' || cell.type === 'tax' || cell.type === 'provider' || cell.type === 'utility' ? (
+                    <span className="text-[11px] sm:text-base">{cellIcon(cell)}</span>
+                  ) : (
+                    <span className="hidden truncate font-semibold sm:block">{title}</span>
+                  )}
+                </div>
+                <div className="min-h-[8px] sm:min-h-[10px]" />
               </div>
-              <div className="text-center">
-                {isCorner || cell.type === 'card' || cell.type === 'tax' || cell.type === 'provider' || cell.type === 'utility' ? (
-                  <span className="text-[11px] sm:text-base">{cellIcon(cell)}</span>
+            );
+
+            return (
+              <div key={cell.position} style={{ gridRow: row + 1, gridColumn: col + 1 }}>
+                {href ? (
+                  <Link href={href} className="block h-full">
+                    {inner}
+                  </Link>
                 ) : (
-                  <span className="hidden truncate font-semibold sm:block">{title}</span>
+                  inner
                 )}
               </div>
-              <div className="flex min-h-[8px] w-full flex-wrap justify-center gap-[2px] sm:min-h-[10px]">
-                {here.map((t) => (
-                  <span
-                    key={t.id}
-                    className="size-[8px] rounded-full border border-white shadow sm:size-[11px]"
-                    style={{ background: t.color, opacity: t.inJail ? 0.6 : 1 }}
-                    title={t.name}
-                  />
-                ))}
-              </div>
-            </div>
-          );
+            );
+          })}
 
-          return (
-            <div key={cell.position} style={{ gridRow: row + 1, gridColumn: col + 1 }}>
-              {href ? (
-                <Link href={href} className="block h-full">
-                  {inner}
-                </Link>
-              ) : (
-                inner
-              )}
+          {/* Центр доски: в изометрии логотип лежит на доске вдоль нижней кромки */}
+          <div className="flex flex-col items-center justify-center text-center" style={{ gridRow: '2 / 11', gridColumn: '2 / 11' }}>
+            <div className="text-xl font-black tracking-tight sm:text-3xl">
+              <span className="text-brand">e</span>Monopolia
             </div>
-          );
-        })}
-
-        {/* Центр доски */}
-        <div className="flex flex-col items-center justify-center text-center" style={{ gridRow: '2 / 11', gridColumn: '2 / 11' }}>
-          <div className="text-xl font-black tracking-tight sm:text-3xl">
-            <span className="text-brand">e</span>Monopolia
+            <div className="mt-2 flex flex-wrap justify-center gap-x-3 gap-y-1 px-2 text-[10px] sm:text-xs">
+              {tokens.map((t) => (
+                <span key={t.id} className="flex items-center gap-1">
+                  <span className="size-2.5 rounded-full" style={{ background: t.color }} />
+                  {t.name}
+                  {t.inJail && ' 🚫'}
+                </span>
+              ))}
+            </div>
           </div>
-          <div className="mt-2 flex flex-wrap justify-center gap-x-3 gap-y-1 px-2 text-[10px] sm:text-xs">
-            {tokens.map((t) => (
-              <span key={t.id} className="flex items-center gap-1">
-                <span className="size-2.5 rounded-full" style={{ background: t.color }} />
-                {t.name}
-                {t.inJail && ' 🚫'}
-              </span>
-            ))}
+
+          {/* Слой фишек */}
+          <div className="pointer-events-none absolute inset-0" style={{ transformStyle: 'preserve-3d' }}>
+            {tokens.map((t) => {
+              const { row, col } = cellCoords(t.position);
+              const mates = byCell.get(t.position) ?? [];
+              const i = mates.findIndex((m) => m.id === t.id);
+              const n = mates.length;
+              // Несколько фишек на клетке расставляем по горизонтали
+              const dx = n > 1 ? (i - (n - 1) / 2) * 12 : 0; // px
+              return (
+                <div
+                  key={t.id}
+                  className="absolute transition-all duration-500 ease-in-out"
+                  style={{
+                    left: `${((col + 0.5) / 11) * 100}%`,
+                    top: `${((row + 0.5) / 11) * 100}%`,
+                    transform: `translate(calc(-50% + ${dx}px), -100%)`,
+                    transformStyle: 'preserve-3d',
+                  }}
+                  title={t.name}
+                >
+                  <div
+                    className="origin-bottom transition-transform duration-500"
+                    style={{ transform: iso ? `rotateZ(${-TURN}deg) rotateX(${-TILT}deg)` : 'none' }}
+                  >
+                    <Pawn color={t.color} dim={t.inJail} tall={iso} />
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>
     </div>
+  );
+}
+
+/** Фишка: в 3D — пешка, стоящая на доске; в плоском виде — кружок. */
+function Pawn({ color, dim, tall }: { color: string; dim?: boolean; tall: boolean }) {
+  if (!tall) {
+    return <span className="block size-3 rounded-full border-2 border-white shadow sm:size-4" style={{ background: color, opacity: dim ? 0.6 : 1 }} />;
+  }
+  return (
+    <svg viewBox="0 0 24 40" className="h-8 w-5 drop-shadow-md sm:h-10 sm:w-6" style={{ opacity: dim ? 0.6 : 1 }}>
+      <ellipse cx="12" cy="37" rx="8" ry="2.5" fill="rgba(0,0,0,0.25)" />
+      <path d="M6 36 Q12 22 7 18 Q4 15 7 13 A5 5 0 1 1 17 13 Q20 15 17 18 Q12 22 18 36 Z" fill={color} stroke="#fff" strokeWidth="1.5" />
+    </svg>
   );
 }
