@@ -1,7 +1,9 @@
 'use client';
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import type { Card } from '@/lib/types';
-import { useGame } from '@/lib/store';
+import type { Card, Catalog } from '@/lib/types';
+import { useGame, type BoardRules } from '@/lib/store';
+import { propertyRent, providerRent, utilityRent, ownsGroup, findField } from '@/lib/rules';
 
 const DECK_META = {
   chance: { title: 'Шанс', subtitle: 'Риски интернет-бизнеса', color: '#e63946', icon: '🎲' },
@@ -21,8 +23,16 @@ function shuffle<T>(arr: T[]): T[] {
  * Колода карточек: тасуется в localStorage, тянется по одной, как физическая пачка.
  * Если идёт партия — карточку можно применить к игроку одним нажатием.
  */
-export function CardDrawer({ deck, cards }: { deck: 'chance' | 'chest'; cards: Card[] }) {
+export function CardDrawer({ deck, catalog }: { deck: 'chance' | 'chest'; catalog: Catalog }) {
+  const cards = catalog[deck];
   const meta = DECK_META[deck];
+  const corner = (sub: string) => catalog.cells.find((c) => c.type === 'corner' && c.subtype === sub)?.position;
+  const board: BoardRules = {
+    size: catalog.board.size,
+    startPosition: catalog.board.start_position,
+    jailPosition: corner('jail') ?? 11,
+    goToJailPosition: corner('go_to_jail') ?? 31,
+  };
   const storageKey = `emonopolia-deck-${deck}`;
   const [order, setOrder] = useState<string[] | null>(null);
   const [current, setCurrent] = useState<Card | null>(null);
@@ -35,6 +45,31 @@ export function CardDrawer({ deck, cards }: { deck: 'chance' | 'chest'; cards: C
   const adjustMoney = useGame((s) => s.adjustMoney);
   const adjustTraffic = useGame((s) => s.adjustTraffic);
   const collectFromEach = useGame((s) => s.collectFromEach);
+  const moveTo = useGame((s) => s.moveTo);
+  const sendToJail = useGame((s) => s.sendToJail);
+  const addSkipTurn = useGame((s) => s.addSkipTurn);
+  const transferMoney = useGame((s) => s.transferMoney);
+  const turn = useGame((s) => s.turn);
+
+  // По умолчанию карточку применяем к тому, кто ходит
+  useEffect(() => {
+    const cur = players[turn.current];
+    if (cur) setPlayerId(cur.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [turn.current, players.length]);
+
+  /** Ближайшая по ходу клетка нужной категории (datacenter → коммуналка, search_engine → поисковик). */
+  function nearest(from: number, target: string): number | null {
+    for (let step = 1; step <= board.size; step++) {
+      const pos = ((from - 1 + step) % board.size) + 1;
+      const cell = catalog.cells.find((c) => c.position === pos);
+      if (!cell || !('ref' in cell)) continue;
+      const f = findField(catalog, cell.ref);
+      if (!f) continue;
+      if ((f.kind === 'utility' || f.kind === 'property') && f.category === target) return pos;
+    }
+    return null;
+  }
 
   useEffect(() => {
     try {
@@ -105,15 +140,44 @@ export function CardDrawer({ deck, cards }: { deck: 'chance' | 'chest'; cards: C
         break;
       }
       case 'move_to':
-        if (a.target === 'start') adjustMoney(playerId, 200, reason);
+        if (a.target === 'start') moveTo(playerId, board.startPosition, board, true, reason);
         break;
+      case 'go_to_jail':
+        sendToJail(playerId, board, reason);
+        break;
+      case 'skip_turn':
+        addSkipTurn(playerId, a.count ?? 1, reason);
+        break;
+      case 'move_to_nearest': {
+        const me = players.find((p) => p.id === playerId);
+        const pos = me ? nearest(me.position, a.target ?? '') : null;
+        if (!pos) return;
+        moveTo(playerId, pos, board, true, reason);
+        // Если поле чужое — сразу считаем ренту с множителем карточки
+        const cell = catalog.cells.find((c) => c.position === pos);
+        const own = cell && 'ref' in cell ? ownership[cell.ref] : undefined;
+        const field = cell && 'ref' in cell ? findField(catalog, cell.ref) : undefined;
+        if (own && field && own.owner !== playerId && !own.mortgaged) {
+          const ownerFields = Object.entries(ownership).filter(([, o]) => o.owner === own.owner).map(([id]) => id);
+          let rent = 0;
+          if (field.kind === 'property') rent = propertyRent(field, { monopoly: ownsGroup(catalog, ownerFields, field.group), level: own.level });
+          else if (field.kind === 'provider') rent = providerRent(catalog, catalog.providers.filter((p) => ownerFields.includes(p.id)).length);
+          else {
+            const [x, y] = turn.lastRoll ?? [3, 4];
+            rent = utilityRent(catalog, catalog.utilities.filter((u) => ownerFields.includes(u.id)).length, x + y);
+          }
+          rent *= a.multiplier ?? 1;
+          transferMoney(playerId, own.owner, rent, `${reason} — рента${a.multiplier ? ` ×${a.multiplier}` : ''} за ${field.name}`);
+        }
+        break;
+      }
       default:
-        return; // ручные действия: БАН, пропуск хода, переход на поле
+        return; // double_next_rent — отслеживается вручную
     }
     setApplied(true);
   }
 
-  const auto = current && !['go_to_jail', 'move_to_nearest', 'skip_turn', 'double_next_rent'].includes(current.action.type);
+  const auto = current && current.action.type !== 'double_next_rent';
 
   return (
     <div className="space-y-4">
@@ -144,6 +208,11 @@ export function CardDrawer({ deck, cards }: { deck: 'chance' | 'chest'; cards: C
 
           {started && players.length > 0 && (
             <div className="flex flex-wrap items-center gap-2 border-t border-navy/10 pt-3">
+              {applied && (
+                <Link href="/game/" className="btn-ghost w-full">
+                  ← Вернуться к партии
+                </Link>
+              )}
               <select className="input w-auto flex-1" value={playerId} onChange={(e) => setPlayerId(e.target.value)}>
                 {players.map((p) => (
                   <option key={p.id} value={p.id}>
@@ -156,7 +225,7 @@ export function CardDrawer({ deck, cards }: { deck: 'chance' | 'chest'; cards: C
                   {applied ? 'Применено ✓' : 'Применить к игроку'}
                 </button>
               ) : (
-                <span className="text-sm text-muted">Выполните действие вручную на доске.</span>
+                <span className="text-sm text-muted">Запомните: следующая полученная рента удваивается.</span>
               )}
             </div>
           )}
