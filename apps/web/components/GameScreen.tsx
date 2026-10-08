@@ -211,7 +211,7 @@ function Table({ catalog }: { catalog: Catalog }) {
           className="shrink-0"
           tokens={g.players.map((p) => ({ id: p.id, name: p.name, color: p.color, position: p.position, inJail: p.inJail }))}
           highlight={g.turn.landed}
-          ownership={Object.fromEntries(Object.entries(g.ownership).map(([id, o]) => [id, g.players.find((p) => p.id === o.owner)?.color ?? '#999']))}
+          ownership={Object.fromEntries(Object.entries(g.ownership).map(([id, o]) => [id, { color: g.players.find((p) => p.id === o.owner)?.color ?? '#999', level: o.level, mortgaged: o.mortgaged }]))}
           style={{ width: view === 'iso' ? 'min(135%, calc((100dvh - 230px) * 1.47))' : 'min(100%, calc(100dvh - 230px))' }}
         />
 
@@ -519,13 +519,53 @@ function LandingCard({
               ОК
             </button>
           );
-      } else {
+      } else if (field && own) {
         title = name;
-        body = 'Твоё поле. Отдыхай.';
+        // Можно ли прокачать прямо отсюда: вся группа у игрока, равномерная застройка, не максимум
+        const mine = Object.entries(g.ownership).filter(([, o]) => o.owner === me.id).map(([id]) => id);
+        const canUpgrade =
+          field.kind === 'property' &&
+          !own.mortgaged &&
+          own.level < MAX_LEVEL &&
+          ownsGroup(catalog, mine, field.group) &&
+          own.level <= Math.min(...groupMembers(catalog, field.group).map((m) => g.ownership[m.id]?.level ?? 0));
+        const pendingHere = g.txs.some((t) => t.status === 'pending' && t.payload.kind === 'upgrade' && t.payload.fieldId === field.id);
+        body = (
+          <>
+            Твоё поле{field.kind === 'property' && own.level > 0 ? ` · ${HOSTING_LEVELS[own.level]}` : ''}.
+            {field.kind === 'property' && canUpgrade && (
+              <>
+                {' '}
+                Следующий уровень — <b>{HOSTING_LEVELS[own.level + 1]}</b> за <b>{field.upgrade_cost} $NET</b>, рента станет{' '}
+                <b>{propertyRent(field, { monopoly: true, level: own.level + 1 })} $NET</b>.
+              </>
+            )}
+            {field.kind === 'property' && !canUpgrade && own.level < MAX_LEVEL && !own.mortgaged && ' Для прокачки нужна вся группа и равномерная застройка.'}
+          </>
+        );
         actions = (
-          <button className="btn-ghost" onClick={onDismiss}>
-            ОК
-          </button>
+          <>
+            {field.kind === 'property' && canUpgrade && !pendingHere && (
+              <button
+                className="btn-primary"
+                disabled={me.money < field.upgrade_cost}
+                onClick={() => {
+                  g.propose({ kind: 'upgrade', fieldId: field.id, fieldName: field.name, playerId: me.id, cost: field.upgrade_cost, toLevel: own.level + 1 }, me.id);
+                  onOpenDeals();
+                }}
+              >
+                🏗️ Прокачать за {field.upgrade_cost}
+              </button>
+            )}
+            {pendingHere && (
+              <button className="btn-ghost" onClick={onOpenDeals}>
+                Ждёт подтверждения →
+              </button>
+            )}
+            <button className="btn-ghost" onClick={onDismiss}>
+              ОК
+            </button>
+          </>
         );
       }
     } else if (cell.type === 'tax') {
