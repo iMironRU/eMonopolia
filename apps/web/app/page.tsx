@@ -3,6 +3,17 @@ import { getCatalog } from '@/lib/data';
 import { GROUP_META, GROUP_ORDER, groupMembers } from '@/lib/rules';
 import { CellTile } from '@/components/CellTile';
 
+const BASE = process.env.NEXT_PUBLIC_BASE_PATH ?? '';
+
+// PDF собираются из print/ при деплое и кладутся в /print/ рядом с сайтом
+const PRINT_FILES = [
+  { file: 'board-a2.pdf', title: 'Поле A2', desc: '400×400 мм + памятка, для типографии' },
+  { file: 'board-a4x4.pdf', title: 'Поле на 4 листах A4', desc: 'домашняя печать, склеить встык' },
+  { file: 'cards-properties.pdf', title: 'Карточки владений', desc: '28 штук, 65×90 мм' },
+  { file: 'cards-chance.pdf', title: 'Карточки Шанса', desc: '16 штук + рубашки' },
+  { file: 'cards-chest.pdf', title: 'Карточки Казны', desc: '16 штук + рубашки' },
+];
+
 export default function HomePage() {
   const catalog = getCatalog();
 
@@ -46,6 +57,19 @@ export default function HomePage() {
           <div className="text-2xl">🪙</div>
           <div className="mt-1 font-bold">Консенсус</div>
           <p className="text-sm text-navy/70">Покупки и прокачки проходят только после подтверждения большинством игроков.</p>
+        </div>
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-xl font-bold">Печатные материалы</h2>
+        <p className="text-sm text-navy/70">Поле и карточки генерируются из тех же данных, что и приложение. На каждой клетке QR-код на её страницу.</p>
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+          {PRINT_FILES.map((f) => (
+            <a key={f.file} href={`${BASE}/print/${f.file}`} className="card p-3 transition hover:shadow-md">
+              <div className="font-semibold">🖨️ {f.title}</div>
+              <div className="text-xs text-muted">{f.desc}</div>
+            </a>
+          ))}
         </div>
       </section>
 
