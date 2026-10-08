@@ -360,7 +360,7 @@ function Sheet({ open, title, onClose, children }: { open: boolean; title: strin
     <div className="absolute inset-0 z-50 flex flex-col justify-end" onClick={onClose}>
       <div className="absolute inset-0 bg-black/50" />
       <div
-        className="relative max-h-[80%] overflow-hidden rounded-t-3xl bg-paper text-navy shadow-2xl"
+        className="relative mx-auto flex max-h-[80%] w-full max-w-2xl flex-col overflow-hidden rounded-t-3xl bg-paper text-navy shadow-2xl"
         style={{ animation: 'sheet-up 0.25s ease-out' }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -371,7 +371,12 @@ function Sheet({ open, title, onClose, children }: { open: boolean; title: strin
             ✕
           </button>
         </div>
-        <div className="max-h-[calc(80dvh-56px)] overflow-y-auto px-4 pb-[max(16px,env(safe-area-inset-bottom))]">{children}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-3">{children}</div>
+        <div className="border-t border-navy/10 bg-paper px-4 pt-2 pb-[max(12px,env(safe-area-inset-bottom))]">
+          <button className="btn-dark w-full" onClick={onClose}>
+            ОК
+          </button>
+        </div>
       </div>
     </div>
   );
