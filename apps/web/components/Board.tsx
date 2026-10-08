@@ -1,6 +1,5 @@
 'use client';
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
 import type { Catalog, Cell } from '@/lib/types';
 import { GROUP_META, findField } from '@/lib/rules';
 import { cellHref, cellTitle } from './CellTile';
@@ -51,8 +50,6 @@ function cellIcon(cell: Cell): string {
 const TILT = 55; // наклон доски, градусов
 const TURN = 45; // поворот доски в плоскости, градусов
 const ISO_SCALE = 0.72; // чтобы ромб влез по ширине
-const VIEW_KEY = 'emonopolia-board-view';
-
 export type BoardView = 'iso' | 'flat';
 
 /** Игровое поле с фишками. Изометрия (как в мобильных «Монополиях») или плоский вид. */
@@ -61,31 +58,19 @@ export function Board({
   tokens,
   highlight,
   ownership,
+  view = 'iso',
+  className = '',
+  style,
 }: {
   catalog: Catalog;
   tokens: Token[];
   highlight?: number | null;
   /** fieldId → цвет владельца, чтобы показать, чьё поле */
   ownership?: Record<string, string>;
+  view?: BoardView;
+  className?: string;
+  style?: React.CSSProperties;
 }) {
-  const [view, setView] = useState<BoardView>('iso');
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem(VIEW_KEY);
-      if (saved === 'flat' || saved === 'iso') setView(saved);
-    } catch {
-      /* нет localStorage — остаёмся в изометрии */
-    }
-  }, []);
-  const toggle = () => {
-    const next: BoardView = view === 'iso' ? 'flat' : 'iso';
-    setView(next);
-    try {
-      localStorage.setItem(VIEW_KEY, next);
-    } catch {
-      /* ignore */
-    }
-  };
   const iso = view === 'iso';
 
   // Фишки лежат отдельным слоем поверх сетки: так их можно «поставить» вертикально
@@ -94,19 +79,10 @@ export function Board({
   for (const t of tokens) byCell.set(t.position, [...(byCell.get(t.position) ?? []), t]);
 
   return (
-    <div className="relative mx-auto w-full max-w-[720px]">
-      <button
-        type="button"
-        onClick={toggle}
-        className="absolute right-0 top-0 z-10 rounded-md border border-navy/15 bg-white/90 px-2 py-1 text-xs font-semibold text-navy/80 hover:bg-navy/5"
-        title="Переключить вид доски"
-      >
-        {iso ? '⬒ Плоская' : '◈ 3D'}
-      </button>
-
+    <div className={`relative mx-auto w-full max-w-[720px] ${className}`} style={style}>
       <div className={`relative w-full ${iso ? 'aspect-[25/17]' : 'aspect-square'}`} style={iso ? { perspective: '1400px', perspectiveOrigin: '50% 40%' } : undefined}>
         <div
-          className={`absolute left-0 top-0 grid aspect-square w-full gap-[2px] rounded-xl bg-navy/10 p-[2px] transition-transform duration-500 ${iso ? 'shadow-2xl' : ''}`}
+          className={`absolute left-0 top-0 grid aspect-square w-full gap-[2px] rounded-xl bg-[#0d1b2a] p-[3px] transition-transform duration-500 ${iso ? 'shadow-2xl' : ''}`}
           style={{
             gridTemplateColumns: 'repeat(11, minmax(0, 1fr))',
             gridTemplateRows: 'repeat(11, minmax(0, 1fr))',
@@ -162,14 +138,18 @@ export function Board({
           })}
 
           {/* Центр доски: в изометрии логотип лежит на доске вдоль нижней кромки */}
-          <div className="flex flex-col items-center justify-center text-center" style={{ gridRow: '2 / 11', gridColumn: '2 / 11' }}>
-            <div className="text-xl font-black tracking-tight sm:text-3xl">
-              <span className="text-brand">e</span>Monopolia
+          <div
+            className="flex flex-col items-center justify-center rounded-lg text-center text-white"
+            style={{ gridRow: '2 / 11', gridColumn: '2 / 11', background: 'radial-gradient(circle at 50% 40%, #35b377 0%, #1f8a55 55%, #176b43 100%)', boxShadow: 'inset 0 0 40px rgba(0,0,0,0.25)' }}
+          >
+            <div className="text-xl font-black tracking-tight drop-shadow sm:text-4xl">
+              <span className="text-[#ffe66d]">e</span>Monopolia
             </div>
+            <div className="mt-1 text-[8px] uppercase tracking-[0.3em] text-white/70 sm:text-xs">построй свой интернет</div>
             <div className="mt-2 flex flex-wrap justify-center gap-x-3 gap-y-1 px-2 text-[10px] sm:text-xs">
               {tokens.map((t) => (
                 <span key={t.id} className="flex items-center gap-1">
-                  <span className="size-2.5 rounded-full" style={{ background: t.color }} />
+                  <span className="size-2.5 rounded-full border border-white/80" style={{ background: t.color }} />
                   {t.name}
                   {t.inJail && ' 🚫'}
                 </span>

@@ -1,6 +1,6 @@
 'use client';
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { Catalog, Field, Property } from '@/lib/types';
 import {
   CONSENSUS_CONVERT_THRESHOLD,
@@ -22,7 +22,7 @@ import {
 } from '@/lib/rules';
 import { PLAYER_COLORS, describeTx, useGame, type BoardRules, type TxPayload } from '@/lib/store';
 import { useHydrated } from './StoreHydrator';
-import { Board } from './Board';
+import { Board, type BoardView } from './Board';
 import { cellHref, cellTitle } from './CellTile';
 
 type Action = 'rent' | 'buy' | 'upgrade' | 'convert' | 'transfer' | 'mortgage' | 'trade' | 'fix';
@@ -41,8 +41,8 @@ const ACTIONS: { id: Action; label: string; icon: string }[] = [
   { id: 'rent', label: 'Рента', icon: '🏠' },
   { id: 'buy', label: 'Купить поле', icon: '🛒' },
   { id: 'upgrade', label: 'Прокачать', icon: '🏗️' },
-  { id: 'convert', label: 'Конвертировать трафик', icon: '💱' },
-  { id: 'trade', label: 'Сделка между игроками', icon: '🤝' },
+  { id: 'convert', label: 'Конвертация трафика', icon: '💱' },
+  { id: 'trade', label: 'Перевод игроку', icon: '🤝' },
   { id: 'transfer', label: 'Продать поле', icon: '📜' },
   { id: 'mortgage', label: 'Залог', icon: '🏦' },
   { id: 'fix', label: 'Коррекция', icon: '✏️' },
@@ -114,157 +114,188 @@ function Setup() {
   );
 }
 
-/* ---------------------------------------------------------------- Table */
+/* ---------------------------------------------------------------- Game shell (мобильная раскладка) */
+
+type Tab = 'players' | 'actions' | 'deals' | 'log' | 'menu';
+const VIEW_KEY = 'emonopolia-board-view';
+const DIE = ['', '⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
 
 function Table({ catalog }: { catalog: Catalog }) {
   const g = useGame();
+  const [tab, setTab] = useState<Tab | null>(null);
   const [action, setAction] = useState<Action | null>(null);
-  const pending = g.txs.filter((t) => t.status === 'pending');
+  const [view, setView] = useState<BoardView>('iso');
+  const [rolling, setRolling] = useState(false);
+  const [showDice, setShowDice] = useState(false);
+  const [paid, setPaid] = useState<number | null>(null); // клетка, за которую уже заплатили в этом ходу
+  const [dismissed, setDismissed] = useState<number | null>(null); // закрытая карточка клетки
 
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(VIEW_KEY);
+      if (saved === 'flat' || saved === 'iso') setView(saved);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+  const toggleView = () => {
+    const next: BoardView = view === 'iso' ? 'flat' : 'iso';
+    setView(next);
+    try {
+      localStorage.setItem(VIEW_KEY, next);
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const me = g.players[g.turn.current];
+  const rules = boardRules(catalog);
+  const pending = g.txs.filter((t) => t.status === 'pending');
   const ownedBy = (pid: string) => Object.entries(g.ownership).filter(([, o]) => o.owner === pid).map(([id]) => id);
-  const mortgagedOf = (pid: string) => ownedBy(pid).filter((id) => g.ownership[id].mortgaged);
+  const myOwned = me ? ownedBy(me.id) : [];
+  const income = me ? trafficIncome(catalog, myOwned, myOwned.filter((id) => g.ownership[id].mortgaged)) : 0;
+  const canRoll = !!me && (!g.turn.rolled || (g.turn.doubles > 0 && !me.inJail));
+  const canEnd = !!me && g.turn.rolled && !(g.turn.doubles > 0 && !me.inJail);
+
+  function roll() {
+    if (!canRoll || rolling) return;
+    setRolling(true);
+    setShowDice(true);
+    setPaid(null);
+    setDismissed(null);
+    // Короткая анимация «кубики крутятся», затем настоящий бросок из стора
+    window.setTimeout(() => {
+      g.rollDice(rules, income);
+      setRolling(false);
+    }, 650);
+  }
+  function endTurn() {
+    setPaid(null);
+    setDismissed(null);
+    setShowDice(false);
+    g.endTurn();
+  }
+
+  if (!me) return null;
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-black">Партия</h1>
-        <button
-          className="btn-ghost text-xs"
-          onClick={() => {
-            if (confirm('Завершить партию и стереть состояние?')) g.reset();
-          }}
-        >
-          Завершить
+    <div
+      className="fixed inset-0 z-40 flex flex-col text-white"
+      style={{ background: 'radial-gradient(circle at 50% 20%, #17483a 0%, #0d1b2a 65%)' }}
+    >
+      {/* HUD */}
+      <header className="flex items-center justify-between gap-2 px-3 pt-[max(8px,env(safe-area-inset-top))] pb-2">
+        <button className="flex min-w-0 items-center gap-2 rounded-full bg-white/10 py-1 pl-1 pr-3 text-left" onClick={() => setTab('players')}>
+          <span className="grid size-8 shrink-0 place-items-center rounded-full text-sm font-black text-white" style={{ background: me.color }}>
+            {me.name.slice(0, 1).toUpperCase()}
+          </span>
+          <span className="min-w-0">
+            <span className="block truncate text-sm font-bold leading-tight">{me.name}</span>
+            <span className="block text-[10px] uppercase tracking-wider text-white/60">ходит</span>
+          </span>
         </button>
+        <div className="flex items-center gap-2">
+          <Stat icon="💵" value={me.money} title="$NET" danger={me.money < 0} />
+          <Stat icon="🌐" value={me.traffic} title="трафик" />
+        </div>
+        <button className="grid size-9 place-items-center rounded-full bg-white/10 text-lg" onClick={() => setTab('menu')} aria-label="Меню">
+          ☰
+        </button>
+      </header>
+
+      {/* Доска */}
+      <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden px-2">
+        <Board
+          catalog={catalog}
+          view={view}
+          className="shrink-0"
+          tokens={g.players.map((p) => ({ id: p.id, name: p.name, color: p.color, position: p.position, inJail: p.inJail }))}
+          highlight={g.turn.landed}
+          ownership={Object.fromEntries(Object.entries(g.ownership).map(([id, o]) => [id, g.players.find((p) => p.id === o.owner)?.color ?? '#999']))}
+          style={{ width: view === 'iso' ? 'min(135%, calc((100dvh - 230px) * 1.47))' : 'min(100%, calc(100dvh - 230px))' }}
+        />
+
+        {showDice && <Dice rolling={rolling} roll={g.turn.lastRoll} />}
+
+        {!rolling && (
+          <LandingCard
+            catalog={catalog}
+            paid={paid}
+            setPaid={setPaid}
+            dismissed={dismissed}
+            onDismiss={() => setDismissed(g.turn.landed)}
+            onOpenDeals={() => setTab('deals')}
+          />
+        )}
       </div>
 
-      <Board
-        catalog={catalog}
-        tokens={g.players.map((p) => ({ id: p.id, name: p.name, color: p.color, position: p.position, inJail: p.inJail }))}
-        highlight={g.turn.landed}
-        ownership={Object.fromEntries(Object.entries(g.ownership).map(([id, o]) => [id, g.players.find((p) => p.id === o.owner)?.color ?? '#999']))}
-      />
+      {/* Нижняя панель */}
+      <nav className="px-2 pb-[max(8px,env(safe-area-inset-bottom))] pt-1">
+        <div className="relative mx-auto grid max-w-xl grid-cols-5 items-end gap-1">
+          <TabButton icon="👥" label="Игроки" onClick={() => setTab('players')} />
+          <TabButton icon="⚡" label="Действия" onClick={() => setTab('actions')} />
+          <div className="flex flex-col items-center">
+            {canRoll ? (
+              <button
+                onClick={roll}
+                disabled={rolling}
+                className="-mt-6 grid size-[76px] place-items-center rounded-full border-4 border-white/20 bg-gradient-to-b from-[#ff9f43] to-[#e8590c] text-center shadow-[0_8px_0_#a63d05,0_12px_24px_rgba(0,0,0,0.5)] transition active:translate-y-1 active:shadow-[0_4px_0_#a63d05] disabled:opacity-70"
+                style={{ transform: rolling ? 'translateY(4px)' : undefined }}
+              >
+                <span className="text-2xl leading-none">🎲</span>
+                <span className="mt-0.5 block text-[10px] font-black uppercase tracking-wider">{g.turn.doubles > 0 && g.turn.rolled ? 'Ещё раз' : 'Бросок'}</span>
+              </button>
+            ) : (
+              <button
+                onClick={endTurn}
+                disabled={!canEnd}
+                className="-mt-6 grid size-[76px] place-items-center rounded-full border-4 border-white/20 bg-gradient-to-b from-[#2ecc71] to-[#1e9e55] text-center shadow-[0_8px_0_#13693a,0_12px_24px_rgba(0,0,0,0.5)] transition active:translate-y-1 active:shadow-[0_4px_0_#13693a] disabled:opacity-50"
+              >
+                <span className="text-2xl leading-none">➜</span>
+                <span className="mt-0.5 block text-[10px] font-black uppercase tracking-wider">Конец хода</span>
+              </button>
+            )}
+            {!g.turn.rolled && income > 0 && <span className="mt-1 text-[10px] text-white/60">+{income} трафика за ход</span>}
+            {g.turn.lastRoll && !showDice && (
+              <span className="mt-1 text-[11px] text-white/70">
+                {DIE[g.turn.lastRoll[0]]}
+                {DIE[g.turn.lastRoll[1]]} = {g.turn.lastRoll[0] + g.turn.lastRoll[1]}
+              </span>
+            )}
+          </div>
+          <TabButton icon="🪙" label="Сделки" badge={pending.length} onClick={() => setTab('deals')} />
+          <TabButton icon="📜" label="Журнал" onClick={() => setTab('log')} />
+        </div>
+      </nav>
 
-      <TurnPanel catalog={catalog} openAction={setAction} />
-
-      {pending.length > 0 && (
-        <section className="space-y-2">
-          <h2 className="font-bold">🪙 Ожидают подтверждения ({pending.length})</h2>
-          {pending.map((tx) => {
-            const yes = Object.values(tx.votes).filter(Boolean).length;
-            return (
-              <div key={tx.id} className="card space-y-2 border-2 border-brand">
-                <div className="font-semibold">{describeTx(tx.payload, g.players)}</div>
-                <div className="text-xs text-muted">
-                  Подтвердили {yes} из {g.players.length}. Нужно простое большинство.
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {g.players.map((p) => {
-                    const v = tx.votes[p.id];
-                    if (v !== undefined)
-                      return (
-                        <span key={p.id} className="rounded-full bg-navy/5 px-2 py-1 text-xs" style={{ borderLeft: `4px solid ${p.color}` }}>
-                          {p.name}: {v ? '✅' : '❌'}
-                        </span>
-                      );
-                    return (
-                      <span key={p.id} className="flex items-center gap-1 rounded-full bg-navy/5 px-2 py-1 text-xs" style={{ borderLeft: `4px solid ${p.color}` }}>
-                        {p.name}
-                        <button className="btn-primary px-2 py-0.5 text-xs" onClick={() => g.vote(tx.id, p.id, true)}>
-                          Да
-                        </button>
-                        <button className="btn-danger px-2 py-0.5 text-xs" onClick={() => g.vote(tx.id, p.id, false)}>
-                          Нет
-                        </button>
-                      </span>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })}
-        </section>
-      )}
-
-      <section className="grid gap-3 sm:grid-cols-2">
-        {g.players.map((p) => {
-          const owned = ownedBy(p.id);
-          const income = trafficIncome(catalog, owned, mortgagedOf(p.id));
-          const synergy = hasEcosystemSynergy(catalog, owned);
-          const cell = catalog.cells.find((c) => c.position === p.position);
-          const isCurrent = g.players[g.turn.current]?.id === p.id;
-          return (
-            <div key={p.id} className={`card space-y-2 ${isCurrent ? 'ring-2 ring-brand' : ''}`} style={{ borderTop: `6px solid ${p.color}` }}>
-              <div className="flex items-baseline justify-between">
-                <div className="text-lg font-bold">
-                  {p.name}
-                  {isCurrent && <span className="ml-2 text-xs font-semibold text-brand">ходит</span>}
-                </div>
-                {synergy && <span className="rounded bg-brand/10 px-1.5 text-xs font-semibold text-brand">экосистема +{SYNERGY_BONUS_PERCENT}%</span>}
-              </div>
-              <div className="text-xs text-muted">
-                📍 {p.position}. {cell ? cellTitle(catalog, cell) : ''}
-                {p.inJail && ' · в БАНе'}
-                {p.skipTurns > 0 && ` · пропуск ${p.skipTurns}`}
-                {income > 0 && ` · +${income} трафика/ход`}
-              </div>
-              <div className="flex gap-4">
-                <div>
-                  <div className="text-xs uppercase text-muted">$NET</div>
-                  <div className={`text-2xl font-black ${p.money < 0 ? 'text-[#e63946]' : ''}`}>{p.money}</div>
-                </div>
-                <div>
-                  <div className="text-xs uppercase text-muted">Трафик</div>
-                  <div className="text-2xl font-black">{p.traffic}</div>
-                </div>
-              </div>
-              <div className="flex flex-wrap gap-1 text-xs">
-                {owned.length === 0 && <span className="text-muted">Полей пока нет</span>}
-                {owned.map((id) => {
-                  const f = findField(catalog, id);
-                  const o = g.ownership[id];
-                  const color = f?.kind === 'property' ? GROUP_META[f.group].color : f?.kind === 'provider' ? '#0d1b2a' : '#6c757d';
-                  return (
-                    <Link
-                      key={id}
-                      href={`/card/${id}/`}
-                      className={`rounded border px-1.5 py-0.5 ${o.mortgaged ? 'line-through opacity-50' : ''}`}
-                      style={{ borderColor: color }}
-                      title={f?.kind === 'property' ? HOSTING_LEVELS[o.level] : undefined}
-                    >
-                      {f?.name}
-                      {o.level > 0 && <sup className="ml-0.5 font-bold">{o.level}</sup>}
-                    </Link>
-                  );
-                })}
-              </div>
-            </div>
-          );
-        })}
-      </section>
-
-      <section className="space-y-3">
-        <h2 className="font-bold">Действия</h2>
-        <div className="flex flex-wrap gap-2">
+      {/* Шторки */}
+      <Sheet open={tab === 'players'} title="Игроки" onClose={() => setTab(null)}>
+        <PlayersList catalog={catalog} />
+      </Sheet>
+      <Sheet open={tab === 'actions'} title="Действия" onClose={() => { setTab(null); setAction(null); }}>
+        <div className="grid grid-cols-2 gap-2">
           {ACTIONS.map((a) => (
-            <button key={a.id} className={action === a.id ? 'btn-dark' : 'btn-ghost'} onClick={() => setAction(action === a.id ? null : a.id)}>
+            <button key={a.id} className={`${action === a.id ? 'btn-dark' : 'btn-ghost'} justify-start`} onClick={() => setAction(action === a.id ? null : a.id)}>
               {a.icon} {a.label}
             </button>
           ))}
         </div>
-        {action === 'rent' && <RentForm catalog={catalog} onDone={() => setAction(null)} />}
-        {action === 'buy' && <BuyForm catalog={catalog} onDone={() => setAction(null)} />}
-        {action === 'upgrade' && <UpgradeForm catalog={catalog} onDone={() => setAction(null)} />}
-        {action === 'convert' && <ConvertForm catalog={catalog} onDone={() => setAction(null)} />}
-        {action === 'trade' && <TradeForm onDone={() => setAction(null)} />}
-        {action === 'transfer' && <TransferForm catalog={catalog} onDone={() => setAction(null)} />}
-        {action === 'mortgage' && <MortgageForm catalog={catalog} onDone={() => setAction(null)} />}
-        {action === 'fix' && <FixForm onDone={() => setAction(null)} />}
-      </section>
-
-      <section className="space-y-2">
-        <h2 className="font-bold">Журнал</h2>
-        <ul className="card max-h-72 space-y-1 overflow-y-auto text-sm">
+        <div className="mt-3">
+          {action === 'rent' && <RentForm catalog={catalog} onDone={() => setAction(null)} />}
+          {action === 'buy' && <BuyForm catalog={catalog} onDone={() => { setAction(null); setTab('deals'); }} />}
+          {action === 'upgrade' && <UpgradeForm catalog={catalog} onDone={() => { setAction(null); setTab('deals'); }} />}
+          {action === 'convert' && <ConvertForm catalog={catalog} onDone={() => setAction(null)} />}
+          {action === 'trade' && <TradeForm onDone={() => setAction(null)} />}
+          {action === 'transfer' && <TransferForm catalog={catalog} onDone={() => { setAction(null); setTab('deals'); }} />}
+          {action === 'mortgage' && <MortgageForm catalog={catalog} onDone={() => setAction(null)} />}
+          {action === 'fix' && <FixForm onDone={() => setAction(null)} />}
+        </div>
+      </Sheet>
+      <Sheet open={tab === 'deals'} title={`Сделки на подтверждение${pending.length ? ` (${pending.length})` : ''}`} onClose={() => setTab(null)}>
+        <PendingList />
+      </Sheet>
+      <Sheet open={tab === 'log'} title="Журнал" onClose={() => setTab(null)}>
+        <ul className="space-y-1 text-sm">
           {g.log.map((e) => (
             <li key={e.id} className="border-b border-navy/5 py-1 last:border-0">
               <span className="mr-2 text-xs text-muted">{new Date(e.ts).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</span>
@@ -272,43 +303,185 @@ function Table({ catalog }: { catalog: Catalog }) {
             </li>
           ))}
         </ul>
-      </section>
+      </Sheet>
+      <Sheet open={tab === 'menu'} title="Меню" onClose={() => setTab(null)}>
+        <div className="space-y-2">
+          <button className="btn-ghost w-full justify-start" onClick={() => { toggleView(); setTab(null); }}>
+            {view === 'iso' ? '⬒ Плоская доска' : '◈ 3D-доска'}
+          </button>
+          <Link href="/" className="btn-ghost w-full justify-start">
+            🗺️ Карточки полей и правила
+          </Link>
+          <Link href="/qr/" className="btn-ghost w-full justify-start">
+            🖨️ QR-коды и печать
+          </Link>
+          <button
+            className="btn-danger w-full justify-start"
+            onClick={() => {
+              if (confirm('Завершить партию и стереть состояние?')) {
+                g.reset();
+                setTab(null);
+              }
+            }}
+          >
+            ⏹ Завершить партию
+          </button>
+        </div>
+      </Sheet>
     </div>
   );
 }
 
-const DIE = ['', '⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
+function Stat({ icon, value, title, danger }: { icon: string; value: number; title: string; danger?: boolean }) {
+  return (
+    <div className={`flex items-center gap-1 rounded-full bg-white/10 px-2.5 py-1 text-sm font-black tabular-nums ${danger ? 'text-[#ff6b6b]' : ''}`} title={title}>
+      <span className="text-base leading-none">{icon}</span>
+      {value.toLocaleString('ru-RU')}
+    </div>
+  );
+}
 
-/** Панель текущего хода: бросок, что выпало, подсказка по клетке, конец хода. */
-function TurnPanel({ catalog, openAction }: { catalog: Catalog; openAction: (a: Action) => void }) {
+function TabButton({ icon, label, badge, onClick }: { icon: string; label: string; badge?: number; onClick: () => void }) {
+  return (
+    <button onClick={onClick} className="relative flex flex-col items-center gap-0.5 rounded-xl py-1 text-white/80 active:bg-white/10">
+      <span className="text-2xl leading-none">{icon}</span>
+      <span className="text-[10px] font-semibold uppercase tracking-wide">{label}</span>
+      {!!badge && (
+        <span className="absolute -top-1 right-1/4 grid min-w-5 place-items-center rounded-full bg-[#e63946] px-1 text-[10px] font-black text-white">{badge}</span>
+      )}
+    </button>
+  );
+}
+
+/** Выдвижная панель снизу, как в мобильных играх. */
+function Sheet({ open, title, onClose, children }: { open: boolean; title: string; onClose: () => void; children: React.ReactNode }) {
+  if (!open) return null;
+  return (
+    <div className="absolute inset-0 z-50 flex flex-col justify-end" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/50" />
+      <div
+        className="relative max-h-[80%] overflow-hidden rounded-t-3xl bg-paper text-navy shadow-2xl"
+        style={{ animation: 'sheet-up 0.25s ease-out' }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between px-4 pt-3 pb-2">
+          <div className="mx-auto h-1.5 w-10 rounded-full bg-navy/20 absolute left-1/2 top-2 -translate-x-1/2" />
+          <h2 className="mt-2 text-lg font-black">{title}</h2>
+          <button className="mt-2 grid size-8 place-items-center rounded-full bg-navy/5 text-navy/70" onClick={onClose} aria-label="Закрыть">
+            ✕
+          </button>
+        </div>
+        <div className="max-h-[calc(80dvh-56px)] overflow-y-auto px-4 pb-[max(16px,env(safe-area-inset-bottom))]">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+/** Кубики по центру доски: крутятся, затем показывают результат. */
+function Dice({ rolling, roll }: { rolling: boolean; roll: [number, number] | null }) {
+  const [faces, setFaces] = useState<[number, number]>([1, 1]);
+  useEffect(() => {
+    if (!rolling) return;
+    const id = window.setInterval(() => setFaces([1 + Math.floor(Math.random() * 6), 1 + Math.floor(Math.random() * 6)]), 80);
+    return () => window.clearInterval(id);
+  }, [rolling]);
+  const shown = rolling || !roll ? faces : roll;
+  return (
+    <div className="pointer-events-none absolute inset-0 flex items-center justify-center gap-3" style={{ transform: 'translateY(-10%)' }}>
+      {shown.map((v, i) => (
+        <div
+          key={i}
+          className="grid size-14 place-items-center rounded-2xl bg-white text-4xl text-navy shadow-[0_10px_24px_rgba(0,0,0,0.5)] sm:size-20 sm:text-6xl"
+          style={{ animation: rolling ? `die-roll 0.5s ease-in-out infinite ${i * 0.1}s` : 'die-land 0.4s ease-out' }}
+        >
+          {DIE[v]}
+        </div>
+      ))}
+      {!rolling && roll && (
+        <div className="absolute mt-32 rounded-full bg-black/50 px-3 py-1 text-lg font-black sm:mt-44">= {roll[0] + roll[1]}</div>
+      )}
+    </div>
+  );
+}
+
+/** Карточка клетки, на которую встал игрок: что произошло и что нажать. */
+function LandingCard({
+  catalog,
+  paid,
+  setPaid,
+  dismissed,
+  onDismiss,
+  onOpenDeals,
+}: {
+  catalog: Catalog;
+  paid: number | null;
+  setPaid: (p: number | null) => void;
+  dismissed: number | null;
+  onDismiss: () => void;
+  onOpenDeals: () => void;
+}) {
   const g = useGame();
-  const [paid, setPaid] = useState<number | null>(null); // клетка, за которую уже заплатили в этом ходу
   const me = g.players[g.turn.current];
   if (!me) return null;
-  const rules = boardRules(catalog);
-  const owned = Object.entries(g.ownership).filter(([, o]) => o.owner === me.id).map(([id]) => id);
-  const mortgaged = owned.filter((id) => g.ownership[id].mortgaged);
-  const income = trafficIncome(catalog, owned, mortgaged);
-  const canRoll = !g.turn.rolled || (g.turn.doubles > 0 && !me.inJail);
-  const landedCell = g.turn.landed ? catalog.cells.find((c) => c.position === g.turn.landed) : undefined;
   const [a, b] = g.turn.lastRoll ?? [0, 0];
 
-  // Что делать на клетке, куда встал игрок
-  let landing: React.ReactNode = null;
-  if (landedCell && !me.inJail) {
-    const title = cellTitle(catalog, landedCell);
-    const href = cellHref(landedCell);
-    if ('ref' in landedCell) {
-      const field = findField(catalog, landedCell.ref);
-      const own = g.ownership[landedCell.ref];
+  let title = '';
+  let body: React.ReactNode = null;
+  let actions: React.ReactNode = null;
+  let color = '#0d1b2a';
+
+  if (me.inJail && !g.turn.rolled) {
+    title = '🚫 Ты в БАНе';
+    body = (
+      <>
+        Попытка {me.jailTurns + 1} из 3. Выброси дубль или заплати {g.settings.jailFee} $NET. Рента и трафик продолжают приходить.
+      </>
+    );
+    actions = (
+      <button className="btn-primary" onClick={() => g.payJailFee()}>
+        Заплатить {g.settings.jailFee} $NET
+      </button>
+    );
+    color = '#6c757d';
+  } else if (g.turn.landed && dismissed !== g.turn.landed) {
+    const cell = catalog.cells.find((c) => c.position === g.turn.landed);
+    if (!cell) return null;
+    const name = cellTitle(catalog, cell);
+    if (me.inJail) {
+      title = '👮 Под БАН!';
+      body = 'Фишка отправлена в БАН. Выход — дубль, карточка или штраф в начале следующего хода.';
+      color = '#e63946';
+    } else if ('ref' in cell) {
+      const field = findField(catalog, cell.ref);
+      const own = g.ownership[cell.ref];
+      color = field?.kind === 'property' ? GROUP_META[field.group].color : field?.kind === 'provider' ? '#0d1b2a' : '#6c757d';
       if (field && !own) {
-        landing = (
+        const pendingHere = g.txs.some((t) => t.status === 'pending' && t.payload.kind === 'buy' && t.payload.fieldId === field.id);
+        title = name;
+        body = (
           <>
-            <span>
-              <b>{title}</b> свободно — {field.price} $NET.
-            </span>
-            <button className="btn-primary px-2 py-1 text-xs" onClick={() => openAction('buy')}>
-              Купить
+            Свободно. Цена <b>{field.price} $NET</b>
+            {field.kind === 'property' && <> · {GROUP_META[field.group].label}</>}
+          </>
+        );
+        actions = pendingHere ? (
+          <button className="btn-ghost" onClick={onOpenDeals}>
+            Ждёт подтверждения →
+          </button>
+        ) : (
+          <>
+            <button
+              className="btn-primary"
+              disabled={me.money < field.price}
+              onClick={() => {
+                g.propose({ kind: 'buy', fieldId: field.id, fieldName: field.name, playerId: me.id, price: field.price }, me.id);
+                onOpenDeals();
+              }}
+            >
+              Купить за {field.price}
+            </button>
+            <button className="btn-ghost" onClick={onDismiss}>
+              Пропустить
             </button>
           </>
         );
@@ -316,128 +489,236 @@ function TurnPanel({ catalog, openAction }: { catalog: Catalog; openAction: (a: 
         const owner = g.players.find((p) => p.id === own.owner);
         const ownerFields = Object.entries(g.ownership).filter(([, o]) => o.owner === own.owner).map(([id]) => id);
         let rent = 0;
-        if (own.mortgaged) rent = 0;
-        else if (field.kind === 'property') rent = propertyRent(field, { monopoly: ownsGroup(catalog, ownerFields, field.group), level: own.level });
-        else if (field.kind === 'provider') rent = providerRent(catalog, catalog.providers.filter((p) => ownerFields.includes(p.id)).length);
-        else rent = utilityRent(catalog, catalog.utilities.filter((u) => ownerFields.includes(u.id)).length, a + b);
-        const done = paid === landedCell.position;
-        landing = (
+        if (!own.mortgaged) {
+          if (field.kind === 'property') rent = propertyRent(field, { monopoly: ownsGroup(catalog, ownerFields, field.group), level: own.level });
+          else if (field.kind === 'provider') rent = providerRent(catalog, catalog.providers.filter((p) => ownerFields.includes(p.id)).length);
+          else rent = utilityRent(catalog, catalog.utilities.filter((u) => ownerFields.includes(u.id)).length, a + b);
+        }
+        const done = paid === cell.position;
+        title = name;
+        body = (
           <>
-            <span>
-              <b>{title}</b> принадлежит {owner?.name}. Рента: <b>{rent} $NET</b>
-              {own.mortgaged && ' (заложено — платить не нужно)'}
-            </span>
-            {rent > 0 && (
-              <button
-                className="btn-primary px-2 py-1 text-xs"
-                disabled={done}
-                onClick={() => {
-                  g.transferMoney(me.id, own.owner, rent, `рента за ${field.name}`);
-                  setPaid(landedCell.position);
-                }}
-              >
-                {done ? 'Оплачено ✓' : 'Заплатить'}
-              </button>
-            )}
+            Владелец — <b style={{ color: owner?.color }}>{owner?.name}</b>.{' '}
+            {own.mortgaged ? 'Поле заложено, платить не нужно.' : <>Рента <b>{rent} $NET</b>{field.kind === 'property' && own.level > 0 ? ` · ${HOSTING_LEVELS[own.level]}` : ''}</>}
           </>
         );
+        actions =
+          rent > 0 ? (
+            <button
+              className={done ? 'btn-ghost' : 'btn-danger'}
+              disabled={done}
+              onClick={() => {
+                g.transferMoney(me.id, own.owner, rent, `рента за ${field.name}`);
+                setPaid(cell.position);
+              }}
+            >
+              {done ? 'Оплачено ✓' : `Заплатить ${rent} $NET`}
+            </button>
+          ) : (
+            <button className="btn-ghost" onClick={onDismiss}>
+              ОК
+            </button>
+          );
       } else {
-        landing = (
-          <span>
-            <b>{title}</b> — твоё поле.
-          </span>
+        title = name;
+        body = 'Твоё поле. Отдыхай.';
+        actions = (
+          <button className="btn-ghost" onClick={onDismiss}>
+            ОК
+          </button>
         );
       }
-    } else if (landedCell.type === 'tax') {
-      const done = paid === landedCell.position;
-      landing = (
+    } else if (cell.type === 'tax') {
+      const done = paid === cell.position;
+      title = `💸 ${cell.name}`;
+      body = (
         <>
-          <span>
-            <b>{landedCell.name}</b>: {landedCell.amount} $NET в банк.
-          </span>
-          <button
-            className="btn-primary px-2 py-1 text-xs"
-            disabled={done}
-            onClick={() => {
-              g.adjustMoney(me.id, -landedCell.amount, landedCell.name);
-              setPaid(landedCell.position);
-            }}
-          >
-            {done ? 'Оплачено ✓' : 'Заплатить'}
-          </button>
+          В банк <b>{cell.amount} $NET</b>.
         </>
       );
-    } else if (landedCell.type === 'card') {
-      landing = (
-        <>
-          <span>
-            <b>{title}</b> — тяни карточку.
-          </span>
-          {href && (
-            <Link href={href} className="btn-primary px-2 py-1 text-xs">
-              Тянуть
-            </Link>
-          )}
-        </>
+      color = '#adb5bd';
+      actions = (
+        <button
+          className={done ? 'btn-ghost' : 'btn-danger'}
+          disabled={done}
+          onClick={() => {
+            g.adjustMoney(me.id, -cell.amount, cell.name);
+            setPaid(cell.position);
+          }}
+        >
+          {done ? 'Оплачено ✓' : `Заплатить ${cell.amount} $NET`}
+        </button>
       );
-    } else if (landedCell.type === 'corner') {
-      landing = <span>{landedCell.subtype === 'start' ? 'СТАРТ. Бонус уже начислен.' : landedCell.subtype === 'free_parking' ? 'Офлайн — ничего не происходит.' : title}</span>;
+    } else if (cell.type === 'card') {
+      const chance = cell.deck === 'chance';
+      title = chance ? '🎲 Шанс' : '💼 Казна';
+      body = chance ? 'Риски интернет-бизнеса. Тяни карточку.' : 'Возможности интернет-бизнеса. Тяни карточку.';
+      color = chance ? '#e63946' : '#3a86ff';
+      actions = (
+        <Link href={cellHref(cell) ?? '/'} className="btn-primary">
+          Тянуть карточку
+        </Link>
+      );
+    } else if (cell.type === 'corner') {
+      title = name;
+      body =
+        cell.subtype === 'start'
+          ? `Бонус +${g.settings.passStartBonus} $NET уже начислен.`
+          : cell.subtype === 'free_parking'
+            ? 'Офлайн. Ничего не происходит.'
+            : 'Просто смотришь. Ничего не происходит.';
+      color = cell.subtype === 'start' ? '#00b86b' : '#6c757d';
+      actions = (
+        <button className="btn-ghost" onClick={onDismiss}>
+          ОК
+        </button>
+      );
     }
+  } else if (g.turn.doubles > 0 && g.turn.rolled && !me.inJail) {
+    title = '🎉 Дубль!';
+    body = g.turn.doubles === 2 ? 'Бросай ещё раз. Третий дубль подряд отправит в БАН.' : 'Бросай ещё раз.';
+    color = '#00b86b';
+  } else {
+    return null;
   }
 
   return (
-    <section className="card space-y-3 border-2" style={{ borderColor: me.color }}>
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <div className="text-xs uppercase tracking-wider text-muted">Ходит</div>
-          <div className="text-xl font-black">{me.name}</div>
-        </div>
-        {g.turn.lastRoll && (
-          <div className="text-4xl leading-none" title={`${a}+${b}=${a + b}`}>
-            {DIE[a]}
-            {DIE[b]} <span className="align-middle text-base font-bold">= {a + b}</span>
+    <div className="pointer-events-none absolute inset-x-0 bottom-2 flex justify-center px-3">
+      <div
+        className="pointer-events-auto w-full max-w-md rounded-2xl bg-white p-3 text-navy shadow-[0_12px_32px_rgba(0,0,0,0.5)]"
+        style={{ borderTop: `6px solid ${color}`, animation: 'sheet-up 0.3s ease-out' }}
+      >
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <div className="truncate text-base font-black">{title}</div>
+            <div className="mt-0.5 text-sm text-navy/80">{body}</div>
           </div>
-        )}
+          {g.turn.doubles > 0 && g.turn.rolled && !me.inJail && title !== '🎉 Дубль!' && (
+            <span className="shrink-0 rounded-full bg-brand/10 px-2 py-0.5 text-xs font-bold text-brand">дубль</span>
+          )}
+        </div>
+        {actions && <div className="mt-2 flex flex-wrap gap-2">{actions}</div>}
       </div>
+    </div>
+  );
+}
 
-      {me.inJail && !g.turn.rolled && (
-        <div className="rounded-lg bg-navy/5 p-2 text-sm">
-          🚫 В БАНе (попытка {me.jailTurns + 1}/3). Выброси дубль или заплати {g.settings.jailFee} $NET. Рента и трафик продолжают приходить.
+function PlayersList({ catalog }: { catalog: Catalog }) {
+  const g = useGame();
+  const ownedBy = (pid: string) => Object.entries(g.ownership).filter(([, o]) => o.owner === pid).map(([id]) => id);
+  return (
+    <div className="space-y-3">
+      {g.players.map((p) => {
+        const owned = ownedBy(p.id);
+        const income = trafficIncome(catalog, owned, owned.filter((id) => g.ownership[id].mortgaged));
+        const synergy = hasEcosystemSynergy(catalog, owned);
+        const cell = catalog.cells.find((c) => c.position === p.position);
+        const isCurrent = g.players[g.turn.current]?.id === p.id;
+        return (
+          <div key={p.id} className={`card space-y-2 ${isCurrent ? 'ring-2 ring-brand' : ''}`} style={{ borderTop: `6px solid ${p.color}` }}>
+            <div className="flex items-baseline justify-between">
+              <div className="text-lg font-bold">
+                {p.name}
+                {isCurrent && <span className="ml-2 text-xs font-semibold text-brand">ходит</span>}
+              </div>
+              {synergy && <span className="rounded bg-brand/10 px-1.5 text-xs font-semibold text-brand">экосистема +{SYNERGY_BONUS_PERCENT}%</span>}
+            </div>
+            <div className="text-xs text-muted">
+              📍 {p.position}. {cell ? cellTitle(catalog, cell) : ''}
+              {p.inJail && ' · в БАНе'}
+              {p.skipTurns > 0 && ` · пропуск ${p.skipTurns}`}
+              {income > 0 && ` · +${income} трафика/ход`}
+            </div>
+            <div className="flex gap-4">
+              <div>
+                <div className="text-xs uppercase text-muted">$NET</div>
+                <div className={`text-2xl font-black ${p.money < 0 ? 'text-[#e63946]' : ''}`}>{p.money}</div>
+              </div>
+              <div>
+                <div className="text-xs uppercase text-muted">Трафик</div>
+                <div className="text-2xl font-black">{p.traffic}</div>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-1 text-xs">
+              {owned.length === 0 && <span className="text-muted">Полей пока нет</span>}
+              {owned.map((id) => {
+                const f = findField(catalog, id);
+                const o = g.ownership[id];
+                const color = f?.kind === 'property' ? GROUP_META[f.group].color : f?.kind === 'provider' ? '#0d1b2a' : '#6c757d';
+                return (
+                  <Link
+                    key={id}
+                    href={`/card/${id}/`}
+                    className={`rounded border px-1.5 py-0.5 ${o.mortgaged ? 'line-through opacity-50' : ''}`}
+                    style={{ borderColor: color }}
+                    title={f?.kind === 'property' ? HOSTING_LEVELS[o.level] : undefined}
+                  >
+                    {f?.name}
+                    {o.level > 0 && <sup className="ml-0.5 font-bold">{o.level}</sup>}
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function PendingList() {
+  const g = useGame();
+  const pending = g.txs.filter((t) => t.status === 'pending');
+  const recent = g.txs.filter((t) => t.status !== 'pending').slice(-5).reverse();
+  return (
+    <div className="space-y-3">
+      {pending.length === 0 && <p className="text-sm text-muted">Нет сделок, ожидающих подтверждения. Покупка, прокачка и передача поля попадают сюда и проходят большинством голосов — как транзакция в блокчейне.</p>}
+      {pending.map((tx) => {
+        const yes = Object.values(tx.votes).filter(Boolean).length;
+        return (
+          <div key={tx.id} className="card space-y-2 border-2 border-brand">
+            <div className="font-semibold">{describeTx(tx.payload, g.players)}</div>
+            <div className="text-xs text-muted">
+              Подтвердили {yes} из {g.players.length}. Нужно простое большинство.
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {g.players.map((p) => {
+                const v = tx.votes[p.id];
+                if (v !== undefined)
+                  return (
+                    <span key={p.id} className="rounded-full bg-navy/5 px-2 py-1 text-xs" style={{ borderLeft: `4px solid ${p.color}` }}>
+                      {p.name}: {v ? '✅' : '❌'}
+                    </span>
+                  );
+                return (
+                  <span key={p.id} className="flex items-center gap-1 rounded-full bg-navy/5 px-2 py-1 text-xs" style={{ borderLeft: `4px solid ${p.color}` }}>
+                    {p.name}
+                    <button className="btn-primary px-2 py-0.5 text-xs" onClick={() => g.vote(tx.id, p.id, true)}>
+                      Да
+                    </button>
+                    <button className="btn-danger px-2 py-0.5 text-xs" onClick={() => g.vote(tx.id, p.id, false)}>
+                      Нет
+                    </button>
+                  </span>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+      {recent.length > 0 && (
+        <div>
+          <div className="mb-1 text-xs font-semibold uppercase text-muted">Недавние</div>
+          <ul className="space-y-1 text-sm">
+            {recent.map((tx) => (
+              <li key={tx.id} className="text-navy/70">
+                {tx.status === 'approved' ? '✅' : '❌'} {describeTx(tx.payload, g.players)}
+              </li>
+            ))}
+          </ul>
         </div>
       )}
-      {g.turn.doubles > 0 && !me.inJail && <div className="text-sm font-semibold text-brand">Дубль! Бросай ещё раз. {g.turn.doubles === 2 && 'Третий дубль подряд отправит в БАН.'}</div>}
-
-      {landing && <div className="flex flex-wrap items-center gap-2 rounded-lg bg-navy/5 p-2 text-sm">{landing}</div>}
-
-      <div className="flex flex-wrap gap-2">
-        <button
-          className="btn-dark flex-1"
-          disabled={!canRoll}
-          onClick={() => {
-            setPaid(null);
-            g.rollDice(rules, income);
-          }}
-        >
-          🎲 Бросить кубики
-          {!g.turn.rolled && income > 0 && <span className="ml-1 text-xs opacity-70">(+{income} трафика)</span>}
-        </button>
-        {me.inJail && !g.turn.rolled && (
-          <button className="btn-ghost" onClick={() => g.payJailFee()}>
-            Заплатить {g.settings.jailFee} $NET
-          </button>
-        )}
-        <button
-          className="btn-primary"
-          disabled={!g.turn.rolled || (g.turn.doubles > 0 && !me.inJail)}
-          onClick={() => {
-            setPaid(null);
-            g.endTurn();
-          }}
-        >
-          Конец хода →
-        </button>
-      </div>
-    </section>
+    </div>
   );
 }
 

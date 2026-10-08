@@ -66,3 +66,18 @@ body {
     display: none !important;
   }
 }
+
+@keyframes sheet-up {
+  from { transform: translateY(24px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+@keyframes die-roll {
+  0% { transform: rotate(-12deg) translateY(0); }
+  50% { transform: rotate(12deg) translateY(-14px); }
+  100% { transform: rotate(-12deg) translateY(0); }
+}
+@keyframes die-land {
+  0% { transform: scale(1.4); opacity: 0.5; }
+  60% { transform: scale(0.95); opacity: 1; }
+  100% { transform: scale(1); }
+}
