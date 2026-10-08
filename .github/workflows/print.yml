@@ -1,0 +1,33 @@
+# Сборка печатных материалов (поле, карточки) из data/ — артефакт на каждом PR.
+# На сайт PDF попадают через web-deploy.yml.
+name: Print materials
+
+on:
+  pull_request:
+    paths:
+      - 'data/**'
+      - 'content/**'
+      - 'print/**'
+      - '.github/workflows/print.yml'
+  workflow_dispatch:
+
+jobs:
+  print:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: print/package-lock.json
+      - name: Install
+        working-directory: print
+        run: npm ci && npx playwright install --with-deps chromium
+      - name: Build PDFs
+        working-directory: print
+        run: npm run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: print-materials
+          path: print/out/*.pdf

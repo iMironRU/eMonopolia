@@ -10,6 +10,7 @@ on:
       - 'data/**'
       - 'content/**'
       - 'scripts/**'
+      - 'print/**'
       - '.github/workflows/web-deploy.yml'
   workflow_dispatch:
 
@@ -33,6 +34,7 @@ jobs:
           cache-dependency-path: |
             package-lock.json
             apps/web/package-lock.json
+            print/package-lock.json
       - name: Validate data
         run: npm ci && npm run validate:data
       # Адрес сайта берём из настроек Pages, а не собираем из имени владельца:
@@ -47,6 +49,17 @@ jobs:
           NEXT_PUBLIC_BASE_PATH: ${{ steps.pages.outputs.base_path }}
           NEXT_PUBLIC_SITE_URL: ${{ steps.pages.outputs.base_url }}
         run: npm ci && npm run build
+      # Печатные материалы (поле, карточки) выкладываются на сайт в /print/
+      - name: Build print materials
+        working-directory: print
+        env:
+          SITE_URL: ${{ steps.pages.outputs.base_url }}
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+          npm run build
+          mkdir -p ../apps/web/out/print
+          cp out/*.pdf ../apps/web/out/print/
       - uses: actions/upload-pages-artifact@v3
         with:
           path: apps/web/out

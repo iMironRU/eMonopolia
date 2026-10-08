@@ -105,6 +105,7 @@ data/editions/
 `.github/workflows/`:
 - `web-deploy.yml` — сборка и деплой Next.js на GitHub Pages при push в main
 - `data-validate.yml` — валидация YAML (`scripts/validate-data.mjs`), typecheck и сборка приложения на каждом PR
+- `print.yml` — сборка PDF из `print/` на PR, артефакт для проверки; в деплое те же PDF кладутся на сайт в `/print/`
 - `print.yml` — генерация PDF при изменении в `data/` или `print/`
 - `release.yml` — релиз с печатными материалами при тегах
 
