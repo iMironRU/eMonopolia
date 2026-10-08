@@ -52,6 +52,22 @@ const TURN = 45; // поворот доски в плоскости, граду�
 const ISO_SCALE = 0.72; // чтобы ромб влез по ширине
 export type BoardView = 'iso' | 'flat';
 
+export interface OwnerInfo {
+  color: string;
+  /** 0 — без прокачки, 1–4 — хостинг, 5 — датацентр */
+  level: number;
+  mortgaged?: boolean;
+}
+
+/** Где на клетке стоят постройки: у внутренней кромки (там же, где цветная полоска). */
+function buildingSpot(position: number): { x: number; y: number } {
+  const { row, col } = cellCoords(position);
+  if (row === 10) return { x: (col + 0.5) / 11, y: (row + 0.24) / 11 };
+  if (row === 0) return { x: (col + 0.5) / 11, y: (row + 0.78) / 11 };
+  if (col === 0) return { x: (col + 0.78) / 11, y: (row + 0.5) / 11 };
+  return { x: (col + 0.24) / 11, y: (row + 0.5) / 11 };
+}
+
 /** Игровое поле с фишками. Изометрия (как в мобильных «Монополиях») или плоский вид. */
 export function Board({
   catalog,
@@ -66,7 +82,7 @@ export function Board({
   tokens: Token[];
   highlight?: number | null;
   /** fieldId → цвет владельца, чтобы показать, чьё поле */
-  ownership?: Record<string, string>;
+  ownership?: Record<string, OwnerInfo>;
   view?: BoardView;
   className?: string;
   style?: React.CSSProperties;
@@ -97,7 +113,7 @@ export function Board({
             const title = cellTitle(catalog, cell);
             const href = cellHref(cell);
             const isCorner = cell.type === 'corner';
-            const ownerColor = 'ref' in cell ? ownership?.[cell.ref] : undefined;
+            const ownerColor = 'ref' in cell ? ownership?.[cell.ref]?.color : undefined;
             const active = highlight === cell.position;
             // Цветная полоска — на внутренней стороне клетки (как на настоящей доске)
             const stripe =
@@ -157,8 +173,26 @@ export function Board({
             </div>
           </div>
 
-          {/* Слой фишек */}
+          {/* Слой построек и фишек */}
           <div className="pointer-events-none absolute inset-0" style={{ transformStyle: 'preserve-3d' }}>
+            {catalog.cells.map((cell) => {
+              if (!('ref' in cell)) return null;
+              const own = ownership?.[cell.ref];
+              if (!own || own.level <= 0) return null;
+              const { x, y } = buildingSpot(cell.position);
+              return (
+                <div
+                  key={`b-${cell.ref}`}
+                  className="absolute"
+                  style={{ left: `${x * 100}%`, top: `${y * 100}%`, transform: 'translate(-50%, -100%)', transformStyle: 'preserve-3d' }}
+                  title={`${cellTitle(catalog, cell)}: уровень ${own.level}`}
+                >
+                  <div className="origin-bottom" style={{ transform: iso ? `rotateZ(${-TURN}deg) rotateX(${-TILT}deg)` : 'none', opacity: own.mortgaged ? 0.5 : 1 }}>
+                    <Buildings level={own.level} color={own.color} tall={iso} />
+                  </div>
+                </div>
+              );
+            })}
             {tokens.map((t) => {
               const { row, col } = cellCoords(t.position);
               const mates = byCell.get(t.position) ?? [];
@@ -203,6 +237,48 @@ function Pawn({ color, dim, tall }: { color: string; dim?: boolean; tall: boolea
     <svg viewBox="0 0 24 40" className="h-8 w-5 drop-shadow-md sm:h-10 sm:w-6" style={{ opacity: dim ? 0.6 : 1 }}>
       <ellipse cx="12" cy="37" rx="8" ry="2.5" fill="rgba(0,0,0,0.25)" />
       <path d="M6 36 Q12 22 7 18 Q4 15 7 13 A5 5 0 1 1 17 13 Q20 15 17 18 Q12 22 18 36 Z" fill={color} stroke="#fff" strokeWidth="1.5" />
+    </svg>
+  );
+}
+
+/**
+ * Постройки на поле — уровни прокачки хостинга.
+ * 1–4: серверные стойки (по одной на уровень), 5: собственный датацентр.
+ */
+function Buildings({ level, color, tall }: { level: number; color: string; tall: boolean }) {
+  if (level >= 5) {
+    // Датацентр: здание с окнами
+    const w = tall ? 'h-7 w-7 sm:h-9 sm:w-9' : 'h-4 w-4 sm:h-5 sm:w-5';
+    return (
+      <svg viewBox="0 0 28 28" className={`${w} drop-shadow-md`}>
+        <ellipse cx="14" cy="26" rx="12" ry="2" fill="rgba(0,0,0,0.25)" />
+        <rect x="3" y="6" width="22" height="20" rx="1.5" fill={color} stroke="#fff" strokeWidth="1.5" />
+        <rect x="6" y="2" width="16" height="5" rx="1" fill={color} stroke="#fff" strokeWidth="1.5" />
+        {[0, 1, 2].map((r) =>
+          [0, 1, 2, 3].map((c) => <rect key={`${r}${c}`} x={6 + c * 4.5} y={10 + r * 4.5} width="2.6" height="2.6" fill="#fff" opacity="0.9" />),
+        )}
+      </svg>
+    );
+  }
+  // Стойки: level штук, в ряд
+  const n = Math.min(4, level);
+  const unit = tall ? 9 : 6;
+  const h = tall ? 14 : 8;
+  const width = n * unit + 2;
+  return (
+    <svg viewBox={`0 0 ${width} ${h + 4}`} width={width * (tall ? 1.3 : 1)} height={(h + 4) * (tall ? 1.3 : 1)} className="drop-shadow">
+      {Array.from({ length: n }).map((_, i) => (
+        <g key={i}>
+          <rect x={1 + i * unit} y={2} width={unit - 2} height={h} rx="1" fill={color} stroke="#fff" strokeWidth="1" />
+          {tall && (
+            <>
+              <rect x={2.5 + i * unit} y={4} width={unit - 5} height="1.6" fill="#fff" opacity="0.9" />
+              <rect x={2.5 + i * unit} y={7} width={unit - 5} height="1.6" fill="#fff" opacity="0.7" />
+              <rect x={2.5 + i * unit} y={10} width={unit - 5} height="1.6" fill="#fff" opacity="0.5" />
+            </>
+          )}
+        </g>
+      ))}
     </svg>
   );
 }
