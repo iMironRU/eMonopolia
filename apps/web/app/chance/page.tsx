@@ -5,5 +5,5 @@ import { CardDrawer } from '@/components/CardDrawer';
 export const metadata: Metadata = { title: 'Шанс' };
 
 export default function ChancePage() {
-  return <CardDrawer deck="chance" cards={getCatalog().chance} />;
+  return <CardDrawer deck="chance" catalog={getCatalog()} />;
 }
