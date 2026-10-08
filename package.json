@@ -1,0 +1,16 @@
+{
+  "name": "emonopolia",
+  "version": "0.1.0",
+  "private": true,
+  "description": "eMonopolia — гибридная настольно-цифровая игра про то, как устроен интернет",
+  "license": "MIT",
+  "scripts": {
+    "validate:data": "node scripts/validate-data.mjs",
+    "web:install": "npm --prefix apps/web install",
+    "web:dev": "npm --prefix apps/web run dev",
+    "web:build": "npm --prefix apps/web run build"
+  },
+  "devDependencies": {
+    "js-yaml": "^4.1.0"
+  }
+}

@@ -1,0 +1,68 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-navy: #0d1b2a;
+  --color-brand: #00b86b;
+  --color-paper: #f8f9fa;
+  --color-muted: #6c757d;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+html {
+  background: var(--color-paper);
+  color: var(--color-navy);
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  font-family: var(--font-sans);
+  min-height: 100dvh;
+}
+
+.prose-edu h2 {
+  @apply mt-6 mb-2 text-lg font-bold;
+}
+.prose-edu p {
+  @apply my-3 leading-relaxed;
+}
+.prose-edu ul,
+.prose-edu ol {
+  @apply my-3 pl-5 list-disc;
+}
+.prose-edu ol {
+  @apply list-decimal;
+}
+.prose-edu li {
+  @apply my-1;
+}
+.prose-edu strong {
+  @apply font-semibold;
+}
+
+@utility btn {
+  @apply inline-flex items-center justify-center gap-1 rounded-lg px-3 py-2 text-sm font-semibold transition active:scale-[0.98] disabled:opacity-40 disabled:pointer-events-none;
+}
+@utility btn-primary {
+  @apply btn bg-brand text-white hover:brightness-110;
+}
+@utility btn-dark {
+  @apply btn bg-navy text-white hover:brightness-125;
+}
+@utility btn-ghost {
+  @apply btn border border-navy/15 bg-white hover:bg-navy/5;
+}
+@utility btn-danger {
+  @apply btn bg-[#e63946] text-white hover:brightness-110;
+}
+.card {
+  @apply rounded-xl border border-navy/10 bg-white p-4 shadow-sm;
+}
+.input {
+  @apply w-full rounded-lg border border-navy/20 bg-white px-3 py-2 text-sm outline-none focus:border-brand;
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+}

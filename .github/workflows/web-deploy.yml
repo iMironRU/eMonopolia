@@ -1,5 +1,5 @@
-# Деплой веб-приложения на GitHub Pages
-# Активируется когда apps/web будет готов
+# Деплой веб-приложения на GitHub Pages.
+# В настройках репозитория: Settings → Pages → Source: GitHub Actions.
 name: Deploy web app
 
 on:
@@ -9,9 +9,16 @@ on:
       - 'apps/web/**'
       - 'data/**'
       - 'content/**'
+      - 'scripts/**'
+      - '.github/workflows/web-deploy.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
 
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -21,12 +28,38 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
-      # TODO: enable when apps/web exists
-      # - run: cd apps/web && npm ci && npm run build
-      # - uses: actions/upload-pages-artifact@v3
-      #   with:
-      #     path: apps/web/out
-      # - uses: actions/deploy-pages@v4
-      - name: TODO
-        run: echo "Web app not implemented yet"
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            apps/web/package-lock.json
+      - name: Validate data
+        run: npm ci && npm run validate:data
+      # Адрес сайта берём из настроек Pages, а не собираем из имени владельца:
+      # на аккаунте задан свой домен, и github.io отдаёт только редирект.
+      # В QR-коды адрес вшивается на сборке — ошибиться тут дорого.
+      - name: Configure Pages
+        id: pages
+        uses: actions/configure-pages@v5
+      - name: Build static site
+        working-directory: apps/web
+        env:
+          NEXT_PUBLIC_BASE_PATH: ${{ steps.pages.outputs.base_path }}
+          NEXT_PUBLIC_SITE_URL: ${{ steps.pages.outputs.base_url }}
+        run: npm ci && npm run build
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: apps/web/out
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
